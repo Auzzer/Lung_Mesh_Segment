@@ -1,0 +1,1163 @@
+{
+  "data_processed/case1_T60_to_T50_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T20_to_T50_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T20_to_T90_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T60_to_T70_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T10_to_T80_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T90_to_T70_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T80_to_T20_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T00_to_T50_warped.xdmf": {
+    "validation": {
+      "is_valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    "quality": {
+      "num_vertices": 129882,
+      "num_triangles": 259724,
+      "total_area": 193135.8318131648,
+      "mean_area": 0.7436195030615762,
+      "min_area": 0.00896791241043628,
+      "max_area": 1.9553531258365449,
+      "mean_edge_length": 1.5281920613801663,
+      "min_edge_length": 0.09663668312063906,
+      "max_edge_length": 3.250364651156557,
+      "mean_angle": 1.047197551196598,
+      "min_angle": 0.03432305151973878,
+      "max_angle": 2.7957504729499374
+    }
+  },
+  "data_processed/case1_T50_to_T10_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T60_to_T40_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T70_to_T30_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T50_to_T80_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T00_to_T30_warped.xdmf": {
+    "validation": {
+      "is_valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    "quality": {
+      "num_vertices": 129882,
+      "num_triangles": 259724,
+      "total_area": 191574.7539090945,
+      "mean_area": 0.737608976871966,
+      "min_area": 0.008550174078137084,
+      "max_area": 1.8381716730346391,
+      "mean_edge_length": 1.5206245339852216,
+      "min_edge_length": 0.09643562133626345,
+      "max_edge_length": 3.055244051702406,
+      "mean_angle": 1.0471975511965983,
+      "min_angle": 0.03330827755706724,
+      "max_angle": 2.795420416150144
+    }
+  },
+  "data_processed/case1_T80_to_T50_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T30_to_T00_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T20_to_T40_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T60_to_T30_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T10_to_T00_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T70_to_T60_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T20_to_T80_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T40_to_T30_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T40_to_T80_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T70_to_T00_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T10_to_T30_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T50_to_T70_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T00_to_T60_warped.xdmf": {
+    "validation": {
+      "is_valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    "quality": {
+      "num_vertices": 129882,
+      "num_triangles": 259724,
+      "total_area": 193141.54668902862,
+      "mean_area": 0.7436415067110803,
+      "min_area": 0.00912242288928332,
+      "max_area": 1.9136493570428919,
+      "mean_edge_length": 1.5278421149093746,
+      "min_edge_length": 0.09774334414384088,
+      "max_edge_length": 3.2003496207391358,
+      "mean_angle": 1.0471975511965974,
+      "min_angle": 0.03462981735416947,
+      "max_angle": 2.7952930792133945
+    }
+  },
+  "data_processed/case1_T90_to_T10_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T40_to_T50_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T90_to_T30_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T80_to_T10_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T90_to_T60_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T00_to_T70_warped.xdmf": {
+    "validation": {
+      "is_valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    "quality": {
+      "num_vertices": 129882,
+      "num_triangles": 259724,
+      "total_area": 192496.8095735039,
+      "mean_area": 0.7411591134184901,
+      "min_area": 0.00884790685605647,
+      "max_area": 1.9399497250189681,
+      "mean_edge_length": 1.525873465682795,
+      "min_edge_length": 0.09505526984257603,
+      "max_edge_length": 3.1263836746311737,
+      "mean_angle": 1.0471975511965972,
+      "min_angle": 0.03393087457248674,
+      "max_angle": 2.7957239248748147
+    }
+  },
+  "data_processed/case1_T30_to_T90_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T10_to_T20_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T60_to_T00_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T10_to_T60_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T40_to_T10_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T70_to_T10_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T00_to_T10_warped.xdmf": {
+    "validation": {
+      "is_valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    "quality": {
+      "num_vertices": 129882,
+      "num_triangles": 259724,
+      "total_area": 189809.87146528743,
+      "mean_area": 0.7308137540823622,
+      "min_area": 0.008870440059257084,
+      "max_area": 1.690884105946438,
+      "mean_edge_length": 1.511351256557502,
+      "min_edge_length": 0.0974253561722766,
+      "max_edge_length": 2.8730581832855124,
+      "mean_angle": 1.0471975511965974,
+      "min_angle": 0.03561801547935198,
+      "max_angle": 2.770932677613664
+    }
+  },
+  "data_processed/case1_T50_to_T40_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T90_to_T20_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T00_to_T40_warped.xdmf": {
+    "validation": {
+      "is_valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    "quality": {
+      "num_vertices": 129882,
+      "num_triangles": 259724,
+      "total_area": 192337.40694104333,
+      "mean_area": 0.7405453748634833,
+      "min_area": 0.008793055168114463,
+      "max_area": 1.9098735630050867,
+      "mean_edge_length": 1.5247854927909263,
+      "min_edge_length": 0.0969210681156616,
+      "max_edge_length": 3.2231197840726877,
+      "mean_angle": 1.0471975511965972,
+      "min_angle": 0.033715025027861445,
+      "max_angle": 2.7983104401083656
+    }
+  },
+  "data_processed/case1_T50_to_T90_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T30_to_T40_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T70_to_T40_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T50_to_T60_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T90_to_T40_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T20_to_T30_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T30_to_T70_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T80_to_T40_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T00_to_T80_warped.xdmf": {
+    "validation": {
+      "is_valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    "quality": {
+      "num_vertices": 129882,
+      "num_triangles": 259724,
+      "total_area": 191729.379763984,
+      "mean_area": 0.738204323682001,
+      "min_area": 0.009028943523064058,
+      "max_area": 1.8932317450208813,
+      "mean_edge_length": 1.5214287508382232,
+      "min_edge_length": 0.09676776574114254,
+      "max_edge_length": 3.093962081175074,
+      "mean_angle": 1.0471975511965979,
+      "min_angle": 0.034512147892480485,
+      "max_angle": 2.7908736733883597
+    }
+  },
+  "data_processed/case1_T80_to_T90_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T20_to_T00_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T90_to_T80_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T80_to_T00_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T40_to_T00_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T30_to_T50_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T60_to_T10_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T10_to_T90_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T30_to_T10_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T40_to_T60_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T30_to_T60_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T70_to_T80_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T90_to_T50_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T10_to_T40_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T20_to_T60_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T40_to_T90_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T60_to_T20_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T70_to_T20_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T20_to_T70_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T60_to_T90_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T80_to_T30_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T90_to_T00_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T80_to_T70_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T00_to_T90_warped.xdmf": {
+    "validation": {
+      "is_valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    "quality": {
+      "num_vertices": 129882,
+      "num_triangles": 259724,
+      "total_area": 190102.83613202767,
+      "mean_area": 0.7319417386611468,
+      "min_area": 0.008948146578126202,
+      "max_area": 1.7348267415745813,
+      "mean_edge_length": 1.5129785621346525,
+      "min_edge_length": 0.09585970406346421,
+      "max_edge_length": 2.9408268004649054,
+      "mean_angle": 1.0471975511965979,
+      "min_angle": 0.035048466964924294,
+      "max_angle": 2.7702641852796788
+    }
+  },
+  "data_processed/case1_T50_to_T30_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T10_to_T70_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T80_to_T60_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T30_to_T20_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T10_to_T50_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T30_to_T80_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T20_to_T10_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T70_to_T50_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T50_to_T00_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T60_to_T80_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T50_to_T20_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T00_to_T20_warped.xdmf": {
+    "validation": {
+      "is_valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    "quality": {
+      "num_vertices": 129882,
+      "num_triangles": 259724,
+      "total_area": 191354.65744245623,
+      "mean_area": 0.7367615524266384,
+      "min_area": 0.009192057508977787,
+      "max_area": 1.8459610054854907,
+      "mean_edge_length": 1.5199400496556696,
+      "min_edge_length": 0.09790735532828983,
+      "max_edge_length": 3.0093391952025104,
+      "mean_angle": 1.0471975511965974,
+      "min_angle": 0.03488899624690449,
+      "max_angle": 2.78499089727717
+    }
+  },
+  "data_processed/case1_T40_to_T70_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T40_to_T20_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  },
+  "data_processed/case1_T70_to_T90_warped.xdmf": {
+    "validation": {
+      "is_valid": false,
+      "warnings": [],
+      "errors": [
+        "No triangular cells found in mesh"
+      ]
+    },
+    "quality": {
+      "error": "No triangular cells found in mesh"
+    }
+  }
+}

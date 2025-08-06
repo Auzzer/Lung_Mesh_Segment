@@ -15,9 +15,6 @@
 
 
 # 3. how to update the whole system
-## 3.1 
-Level 1 simulation Foward
+## 3.1 ANN predict stiffness param
 
-Level 2 
-
-Level 3
+## 3.2 backward to update stiffness

@@ -1,0 +1,99 @@
+\documentclass{article}
+
+% PACKAGES
+\usepackage[margin=1in]{geometry} % For setting page margins
+\usepackage{amsmath}              % For advanced math environments
+\usepackage{booktabs}             % For professional-looking tables
+\usepackage{hyperref}             % For hyperlinks (optional, but good practice)
+
+\begin{document}
+
+\title{What “Damping” Means in a Spring-Mass Model}
+\author{} % You can add your name here
+\date{}   % Hides the date
+\maketitle
+
+When you attach an ideal spring between two masses, the system oscillates forever because a Hookean spring stores but never dissipates mechanical energy.
+
+\textbf{Damping} is any mechanism you add to remove that energy so the motion eventually settles instead of ringing indefinitely or even blowing up numerically.
+
+\section{Physical Picture}
+
+Think of a \textbf{dash-pot}: a piston moving through a viscous fluid.
+
+The resisting force is proportional to the relative velocity of the two ends:
+\begin{equation}
+    \boxed{ \;f_\text{damp} = -\,c\,\dot{x}\;}
+\end{equation}
+\begin{itemize}
+    \item[$c$] is the damping coefficient [N$\cdot$s/m] (or N$\cdot$m/rad for rotations).
+    \item[$\dot{x}$] is the velocity (or angular-velocity) difference being damped.
+\end{itemize}
+The dash-pot converts kinetic energy into heat, so total mechanical energy monotonically decreases.
+
+\hrulefill
+\section{Mathematical Role in the Adams Formulation}
+
+ \begin{table}[h!]
+     \centering
+     \caption{Examples of Damping in the Model}
+     \label{tab:damping_terms}
+     \begin{tabular}{@{}p{4cm} p{4cm} p{5cm}@{}}
+         \toprule
+         \textbf{Where used in the code} & \textbf{Term} & \textbf{Purpose} \\
+         \midrule
+         \texttt{self.vel{[}i{]} *= self.damping} & Global velocity damping ($0 < \text{damping} < 1$) & Cheap way to kill high-frequency noise each step. \\
+         \addlinespace
+         \texttt{torsion\_damp\_*} in \texttt{\_apply\_torsion\_springs} & Torsional dash-pot $f=-c_\tau(\hat{\zeta}_\ell \cdot \dot{\hat{\zeta}}_m + \dot{\hat{\zeta}}_\ell \cdot \hat{\zeta}_m)\,\hat{\zeta}_m$ & Prevents the two axes from “whipping” past their rest angle. \\
+         \addlinespace
+         \texttt{f\_j\^{damp}=-c\,(v\_j-v\_b)} in barycentric springs & Bulk-volume dash-pot & Stops spurious oscillation of the barycenter. \\
+         \bottomrule
+     \end{tabular}
+ \end{table}
+
+All of them follow the same linear law: $f \propto \text{(relative velocity)}$.
+
+\hrulefill
+\section{Classical Single-DOF Analogy}
+
+For one mass–spring–damper system, the equation of motion is:
+\begin{equation}
+    m\ddot{x} + c\dot{x} + kx = 0
+\end{equation}
+The \textbf{damping ratio} is $\zeta = \frac{c}{2\sqrt{km}}$.
+\begin{itemize}
+    \item $\zeta < 1$: \textbf{underdamped} (oscillatory decay)
+    \item $\zeta = 1$: \textbf{critical damping} (fastest non-oscillatory return)
+    \item $\zeta > 1$: \textbf{overdamped} (slow, aperiodic return)
+\end{itemize}
+In large systems you rarely compute a global $\zeta$, but the intuition is the same: picking $c$ larger than zero suppresses oscillations; too large and the system becomes sluggish or even unstable under explicit time integration (large damping forces create stiff terms).
+
+\hrulefill
+\section{How to Choose \texorpdfstring{$c$}{c} or the Per-Step Factor}
+\begin{itemize}
+    \item \textbf{Empirical tuning} – start small (e.g., $0.01$–$0.1 \times$ critical) and increase until jitter disappears without visibly slowing motion.
+    \item \textbf{Rayleigh (mass + stiffness) damping} – $C = \alpha M + \beta K$ gives frequency-independent control; often used in FEM but heavier to implement.
+    \item \textbf{Time-step-scaled factor} – multiplying velocities by a constant $< 1$ (e.g., $v \leftarrow (1-\gamma\Delta t)v$) is equivalent to viscous damping with $c = \gamma m$.
+\end{itemize}
+
+In your code:
+\begin{verbatim}
+self.damping = 0.90  # multiply velocity each step
+c_tau         = 0.05 # torsion dash-pot coefficient
+\end{verbatim}
+These values are low enough to stabilize but high enough to damp out fast modes in 1–2 simulated seconds.
+
+\hrulefill
+\section{Take-away}
+
+Damping is the viscous, energy-dissipating counterpart to the elastic spring.
+
+It is crucial in real-time or explicit simulations to:
+\begin{itemize}
+    \item stabilise the integrator,
+    \item prevent unrealistic ringing after sudden load changes,
+    \item let the model settle into a steady shape.
+\end{itemize}
+Always document which damping terms you include, their coefficients, and whether they are global, per-spring, or frequency-selective so readers can reproduce or retune the behaviour.
+
+\end{document}

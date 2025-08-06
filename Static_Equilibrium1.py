@@ -1051,7 +1051,7 @@ class Adamss:
 
     @ti.kernel
     def _compute_deformation_gradients(self):
-        """Compute deformation gradient α = d_x · D_m^(-1) for each tetrahedron using Taichi's built-in inverse"""
+        """Compute deformation gradient alpha = d_x · D_m^(-1) for each tetrahedron using Taichi's built-in inverse"""
         for k in range(self.M):
             if self.vol[k] > EPS_ZERO:
                 # Get reference edge matrix D_m

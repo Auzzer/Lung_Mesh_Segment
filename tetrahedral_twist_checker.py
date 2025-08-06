@@ -2,12 +2,8 @@
 Tetrahedral Twist Angle Checker
 
 This script checks whether tetrahedral axes hardly ever twist away from their rest angle.
-The check computes |δθ| = |θ_current - θ_rest| << 1 for each tetrahedral axis.
+The check computes |delta theta| = |theta_current - theta_rest| << 1 for each tetrahedral axis.
 
-This implementation follows the lung deformation analysis approach:
-- Loads preprocessed data with initial and current configurations
-- Computes twist angles for all 3 anisotropy axes per tetrahedron
-- Provides statistics and validation of twist constraints
 """
 
 import numpy as np
@@ -40,10 +36,10 @@ class TetrahedralTwistChecker:
         self.initial_axes = ti.Vector.field(3, ti.f64, shape=(self.M, 3))
         
         # Twist angle results
-        self.twist_angles = ti.field(ti.f64, shape=(self.M, 3))      # δθ per axis
-        self.rest_angles = ti.field(ti.f64, shape=(self.M, 3))       # θ_rest per axis
-        self.current_angles = ti.field(ti.f64, shape=(self.M, 3))    # θ_current per axis
-        self.twist_magnitude = ti.field(ti.f64, shape=(self.M, 3))   # |δθ| per axis
+        self.twist_angles = ti.field(ti.f64, shape=(self.M, 3))      # deltatheta per axis
+        self.rest_angles = ti.field(ti.f64, shape=(self.M, 3))       # theta_rest per axis
+        self.current_angles = ti.field(ti.f64, shape=(self.M, 3))    # theta_current per axis
+        self.twist_magnitude = ti.field(ti.f64, shape=(self.M, 3))   # |delta theta| per axis
         
         # Statistics and flags
         self.is_valid_tet = ti.field(ti.i32, shape=self.M)           # valid tetrahedron flag
@@ -151,7 +147,7 @@ class TetrahedralTwistChecker:
     
     @ti.kernel
     def _compute_twist_angles(self):
-        """Compute twist angles |δθ| = |θ_current - θ_rest| for each axis"""
+        """Compute twist angles |deltatheta| = |theta_current - theta_rest| for each axis"""
         eps_axis = 1e-10
         
         for k in range(self.M):
@@ -181,7 +177,7 @@ class TetrahedralTwistChecker:
                         curr_normalized = current_axis / current_norm
                         
                         # Compute angle between axes using dot product
-                        # cos(θ) = a·b / (|a||b|)
+                        # cos(theta) = a·b / (|a||b|)
                         cos_angle = init_normalized.dot(curr_normalized)
                         
                         # Clamp to avoid numerical issues with acos
@@ -193,7 +189,7 @@ class TetrahedralTwistChecker:
                         # Store results
                         self.rest_angles[k, axis_idx] = 0.0  # Reference angle is 0
                         self.current_angles[k, axis_idx] = twist_angle
-                        self.twist_angles[k, axis_idx] = twist_angle  # δθ = θ_current - θ_rest
+                        self.twist_angles[k, axis_idx] = twist_angle  # deltatheta = theta_current - theta_rest
                         self.twist_magnitude[k, axis_idx] = ti.abs(twist_angle)
                         
                         # Track maximum twist per tetrahedron
@@ -212,7 +208,7 @@ class TetrahedralTwistChecker:
     
     def check_twist_constraint(self, tolerance=0.1):
         """
-        Check if tetrahedral axes satisfy twist constraint |δθ| << 1
+        Check if tetrahedral axes satisfy twist constraint |deltatheta| << 1
         
         Args:
             tolerance: Maximum allowed twist angle in radians (default 0.1 rad ≈ 5.7°)
@@ -451,7 +447,7 @@ def main():
     checker = TetrahedralTwistChecker(data_path)
     
     # Perform analysis
-    stats = checker.check_twist_constraint(tolerance=tolerance)
+    checker.check_twist_constraint(tolerance=tolerance)
     
     # Find a tetrahedron with high twist for visualization
     twist_magnitudes = checker.twist_magnitude.to_numpy()

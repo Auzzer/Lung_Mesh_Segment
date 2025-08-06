@@ -32,9 +32,9 @@ ti.init(arch=ti.cuda)
 # CONSTANTS
 # --------------------------------------------
 DEFAULT_RHO = {
-    0: 1_050.0,   # normal tissue (kg/m³)
+    0: 1050.0,   # normal tissue (kg/m³)
     1:   250.0,   # air-rich
-    2: 1_100.0,   # fibrotic
+    2: 1100.0,   # fibrotic
 }
 
 # Tolerance constants
@@ -57,16 +57,12 @@ class Sim:
         # -------------------------------Core Taichi  data fields ------------------------------------
         self.x = ti.Vector.field(3, ti.f64, shape=self.N)      # current positions
         self.tets = ti.Vector.field(4, ti.i32, shape=self.M)   # tetrahedron indices
-        self.label = ti.field(ti.i32, shape=self.M)            # region labels
-        self.rho = ti.field(ti.f64, shape=self.M)              # density
         self.vol = ti.field(ti.f64, shape=self.M)              # volumes
         self.mass = ti.field(ti.f64, shape=self.N)             # lumped mass
         
         #-------------------------------------- Spring System Fields --------------------------------------
-        self.anisotropy_axes = ti.Vector.field(3, ti.f64, shape=(self.M, 3))      # 3 axes per tet
         self.intersection_points = ti.Vector.field(3, ti.f64, shape=(self.M, 6))  # 6 points per tet
         self.intersection_valid = ti.field(ti.i32, shape=(self.M, 6))             # validity flag
-        self.intersection_face = ti.field(ti.i32, shape=(self.M, 6))              # face index
         self.C_k = ti.field(ti.f64, shape=(self.M, 4, 6))                        # Coefficient matrix
         
         ## Spring parameters
@@ -107,16 +103,12 @@ class Sim:
         # Basic mesh data - keep original units (mm)
         self.x.from_numpy(data['mesh_points'].astype(np.float64))
         self.tets.from_numpy(data['tetrahedra'].astype(np.int32))
-        self.label.from_numpy(data['labels'].astype(np.int32))
-        self.rho.from_numpy(data['density'].astype(np.float64))
         self.vol.from_numpy(data['volume'].astype(np.float64))
         self.mass.from_numpy(data['mass'].astype(np.float64))
         
         # Spring system data
-        self.anisotropy_axes.from_numpy(data['anisotropy_axes'].astype(np.float64))
         self.intersection_points.from_numpy(data['intersection_points'].astype(np.float64))
         self.intersection_valid.from_numpy(data['intersection_valid'].astype(np.int32))
-        self.intersection_face.from_numpy(data['intersection_face'].astype(np.int32))
         self.C_k.from_numpy(data['coefficient_matrix'].astype(np.float64))
         
         # Spring parameters
@@ -222,7 +214,8 @@ class Sim:
             self.residual[i] = ti.Vector([0.0, 0.0, 0.0])
         
         # Add gravity forces (external forces)
-        gravity = ti.Vector([0.0, -9.81, 0.0])  # mm/s² (consistent with mm units)
+        # mass is in kg, positions in mm → gravity acceleration is 9.81×10⁻³ mm/s²
+        gravity = ti.Vector([0.0, -9.81e-3, 0.0])  # mm/s² (consistent with mm units)
         for i in range(self.N):
             self.residual[i] += self.mass[i] * gravity
         
@@ -280,6 +273,22 @@ class Sim:
 
     @ti.kernel  
     def _build_sparse_matrix(self, K: ti.types.sparse_matrix_builder()):
+        """
+        In an element-based assembly you always go from a local stiffness matrix of size (number of local DOFs)^2
+        to global blocks of size (DOFs per node)^2. 
+
+        Ke is 12*12: Each tetrahedron has 4 nodes. Each node in 3D has 3 translational degrees of freedom (x, y, z).
+        Total local DOFs per tet = 4 nodes * 3 DOF/node = 12, so its tangent stiffness matrix Ke is 12*12.
+        When we generate Ke into the global stiffness K, it's node-pair by node-pair.
+        
+        For a given pair of nodes i and j (each with 3 DOFs), their mutual coupling is a 3*3 submatrix of Ke.
+        we map that 3*3 block into the global matrix at rows (3*node_i + 0..2) and columns (3*node_j + 0..2).
+
+        So the assembly loop over i,j and over d1,d2 (0…2) is simply 
+        extract each 3*3 block from Ke and add it to the big K at the proper global indices.
+
+        """
+        
         # Add contributions from all tetrahedra
         for k in range(self.M):
             if self.vol[k] > 1e-10:
@@ -342,13 +351,15 @@ class Sim:
                                 if row < 3*self.N and col < 3*self.N and row >= 0 and col >= 0:
                                     K[row, col] += torsion_stiff
         
-        # Apply boundary constraints: set diagonal to 1 for constrained DOFs
+        # Apply boundary constraints: add penalty to the diagonal for constrained DOFs
+        # It's diagonal, no coupling to other DOFs. A Dirichlet constraint on q_i only affects that single variable; 
+        # it shouldn’t introduce any artificial coupling between q_i and q_j for j != i. 
+        # A diagonal entry precisely models “stiffness” only in the i-th direction.
         for i in range(self.N):
             if self.is_boundary_constrained[i] == 1:
                 for d in ti.static(range(3)):
                     dof = 3 * i + d
-                    if dof < 3*self.N and dof >= 0:
-                        K[dof, dof] += 1.0  # Set diagonal for boundary constraints
+                    K[dof, dof] += 100000.0  # Set diagonal for boundary constraints
 
     @ti.kernel
     def _flatten_residual_to_vector(self, b: ti.template()):
@@ -374,6 +385,7 @@ class Sim:
                 x[3*i + 1], 
                 x[3*i + 2]
             ])
+            
     @ti.kernel
     def _update_positions_from_solution(self):
         """Update nodal positions: x = x + delta x (for free nodes only)"""

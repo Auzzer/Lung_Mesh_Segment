@@ -271,3 +271,6 @@ imgui.ini
 # toy verification generated matrices
 toy_verification/precomputed_matrices/
 toy_verification/precomputed_matrices/*
+toy_verification/hetero_verification/results/
+toy_verification/homo_verification/results/
+toy_verification/results/

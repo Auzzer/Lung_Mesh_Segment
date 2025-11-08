@@ -1,0 +1,39 @@
+name: lung-project
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - scikit-image
+  - pandas
+  - xarray
+  - nibabel
+  - h5py
+  - pytorch
+  - cudatoolkit=11.7
+  - torchvision
+  - fenics
+  - trame
+  - meshio
+  - eigen
+  - cgal
+  - matplotlib
+  - seaborn
+  - hvplot
+  - notebook
+  - ipython
+  - ipykernel
+  - ipywidgets
+  - tqdm
+  - parse
+  - requests>=2.31
+  - pip
+  - pip:
+    - TotalSegmentator
+    - pygalmesh
+    - git+https://github.com/barkm/torch-fenics.git@master
+    - torch-fem
+

@@ -1,0 +1,499 @@
+\documentclass{beamer}
+\usepackage{amsmath, amssymb}
+\usepackage{bm}
+
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Slide 1: Background and Problem Definition
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+\frametitle{Background and Problem Definition}
+
+\textbf{1. Setting: Discrete Time Integration}
+\begin{itemize}
+    \item We have $m$ particles in $\mathbb{R}^3$ (so $3m$ coordinates in total). Time is discretized into steps of size $h$, so the system's state at step $n$ is $\mathbf{q}_n\in\mathbb{R}^{3m}$.
+    \item The forces are given by
+    \[
+    \mathbf{f}(\mathbf{q})=-\nabla E(\mathbf{q}),
+    \]
+    where $E$ is a (generally non-linear, possibly non-convex) potential energy and $\mathbf{M}$ is a (diagonal) mass matrix.
+\end{itemize}
+
+\bigskip
+
+\textbf{2. Implicit Euler Update Equations}
+\begin{itemize}
+    \item \textbf{Position update:}
+    \[
+    \mathbf{q}_{n+1}=\mathbf{q}_n+h\,\mathbf{v}_{n+1}
+    \]
+    \item \textbf{Velocity update:}
+    \[
+\mathbf{v}_{n+1}=\mathbf{v}_n+h\,\mathbf{M}^{-1}\mathbf{f}\big(\mathbf{q}_{n+1}\big)
+    \]
+\end{itemize}
+
+the velocity at the next time step depends on the forces evaluated at the new position, hence the term ``implicit Euler.''
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Background and Problem Definition}
+
+\textbf{3. Eliminating Velocities}
+\begin{itemize}
+    \item Using
+    \[
+    h\,\mathbf{v}_n=\mathbf{q}_n-\mathbf{q}_{n-1} \quad \text{and} \quad h\,\mathbf{v}_{n+1}=\mathbf{q}_{n+1}-\mathbf{q}_n,
+    \]
+    we substitute into the velocity update to obtain:
+    \[
+    \mathbf{q}_{n+1}-2\mathbf{q}_n+\mathbf{q}_{n-1}=h^2\,\mathbf{M}^{-1}\mathbf{f}\big(\mathbf{q}_{n+1}\big) \quad (5).
+    \]
+    \item This is a discrete version of Newton's $\mathbf{F}=\mathbf{M}\mathbf{a}$ (with acceleration approximated by
+    $  \frac{\mathbf{q}_{n+1}-2\mathbf{q}_n+\mathbf{q}_{n-1}}{h^2}.$)
+    \item Equation (5) is nonlinear and is typically solved with a Newton (or quasi-Newton) method. (Recall the classical approach by Baraff and Witkin (1998) that linearizes the force as 
+    \[
+    \mathbf{f}(\mathbf{q}_{n+1})\approx \mathbf{f}(\mathbf{q}_n)+\nabla\mathbf{f}\big|_{\mathbf{q}_n}(\mathbf{q}_{n+1}-\mathbf{q}_n).
+    \]
+    
+\end{itemize}
+
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Background and Problem Definition}
+\textbf{4. Reformulating as an Optimization Problem}
+\begin{itemize}
+    \item Define:
+    \[
+    \mathbf{x}:=\mathbf{q}_{n+1}, \quad \mathbf{y}:=2\mathbf{q}_n-\mathbf{q}_{n-1}.
+    \]
+    Then equation (5) becomes:
+    \[
+    \mathbf{M}(\mathbf{x}-\mathbf{y})=h^2\,\mathbf{f}(\mathbf{x}) \quad (7).
+    \]
+    \item Since $\mathbf{f}(\mathbf{x})=-\nabla E(\mathbf{x})$, we have:
+    \[
+    \mathbf{M}(\mathbf{x}-\mathbf{y})+h^2\,\nabla E(\mathbf{x})=0.
+    \]
+    \item Notice that this is the gradient of the function
+    \[
+    g(\mathbf{x})=\frac{1}{2}(\mathbf{x}-\mathbf{y})^T\mathbf{M}(\mathbf{x}-\mathbf{y})+h^2\,E(\mathbf{x}) \quad (8).
+    \]
+    with respect to $\mathbf{x}$. 
+
+
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Background and Problem Definition}
+So, we have:
+$$
+\nabla g(\mathbf{x})=\mathbf{M}(\mathbf{x}-\mathbf{y})+h^2 \nabla E(\mathbf{x})
+$$
+
+
+Hence, setting $\nabla g(\mathbf{x})=0$ is equivalent to solving $\mathbf{M}(\mathbf{x}-\mathbf{y})=h^2 \mathbf{f}(\mathbf{x})$.
+
+Therefore:
+Implicit Euler is the same as solving the optimization problem
+
+$$
+\min _{\mathbf{x}} \underbrace{\frac{1}{2}(\mathbf{x}-\mathbf{y})^T \mathbf{M}(\mathbf{x}-\mathbf{y})+h^2 E(\mathbf{x})}_{=: g(\mathbf{x})}
+$$
+
+But we still need Newton or a similar method to minimize $g(\mathbf{x})$.
+
+    \textbf{Connection to Position-Based Dynamics (PBD):}\\
+    If we define a potential energy $E_{PBD}$ (whose terms are the squared constraint violations), then PBD effectively tries to reduce
+    \[
+    g(\mathbf{x})=\frac{1}{2}(\mathbf{x}-\mathbf{y})^T\mathbf{M}(\mathbf{x}-\mathbf{y})+h^2\,E_{PBD}(\mathbf{x})
+    \]
+    in a Gauss-Seidel-like solver.
+
+
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Slide 3: Main Part -- Hooke's Law and the Reformulation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+\frametitle{Main Part: Hooke's Law and the Reformulation}
+
+\textbf{Hooke's Law (Equation 9)}
+\begin{itemize}
+    \item A single spring connecting points $\mathbf{p}_1$ and $\mathbf{p}_2\in\mathbb{R}^3$ with rest length $r$ has the potential:
+    \[
+    \frac{1}{2}k\Bigl(\|\mathbf{p}_1-\mathbf{p}_2\|-r\Bigr)^2,
+    \]
+    where $k$ is the spring stiffness.
+    \item \textbf{Reformulation:} Introduce an auxiliary vector $\mathbf{d}\in\mathbb{R}^3$ with $\|\mathbf{d}\|=r$. Then,
+    \[
+    \Bigl(\|\mathbf{p}_1-\mathbf{p}_2\|-r\Bigr)^2=\min_{\|\mathbf{d}\|=r}\Bigl\|\bigl(\mathbf{p}_1-\mathbf{p}_2\bigr)-\mathbf{d}\Bigr\|^2.
+    \]
+
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{proof of reformulation}
+\small
+    Lemma. For each $\mathbf{p}_1, \mathbf{p}_2 \in \mathbb{R}^3$ and $r \geq 0$ :
+
+$$
+\left(\left\|\mathbf{p}_1-\mathbf{p}_2\right\|-r\right)^2=\min _{\|\mathbf{d}\|=r}\left\|\left(\mathbf{p}_1-\mathbf{p}_2\right)-\mathbf{d}\right\|^2
+$$
+
+
+Proof. For brevity we define $\mathbf{p}_{12}:=\mathbf{p}_1-\mathbf{p}_2$. Given the constraint $\|\mathbf{d}\|=r$, we rewrite the left side of the equation:
+
+$$
+\left(\left\|\mathbf{p}_{12}\right\|-r\right)^2=\left(\left\|\mathbf{p}_{12}\right\|-\|\mathbf{d}\|\right)^2
+$$
+
+
+By applying the reverse triangle inequality, we have:
+
+$$
+\left(\left\|\mathbf{p}_{12}\right\|-\|\mathbf{d}\|\right)^2 \leq\left\|\mathbf{p}_{12}-\mathbf{d}\right\|^2
+$$
+
+
+Next, if we substitute $\mathbf{d}=r\left(\mathbf{p}_{12} /\left\|\mathbf{p}_{12}\right\|\right)$ to the right side, we obtain:
+
+$$
+\left\|\mathbf{p}_{12}-r \frac{\mathbf{p}_{12}}{\left\|\mathbf{p}_{12}\right\|}\right\|^2=\left\|\frac{\mathbf{p}_{12}}{\left\|\mathbf{p}_{12}\right\|}\left(\left\|\mathbf{p}_{12}\right\|-r\right)\right\|^2=\left(\left\|\mathbf{p}_{12}\right\|-r\right)^2
+$$
+
+
+Therefore, when $\mathbf{d}=r\left(\mathbf{p}_{12} /\left\|\mathbf{p}_{12}\right\|\right)$, the right hand side of the equation produces its minimum value that equals to the leff.
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Slide 4: Main Part -- Summing Over All Springs \& Matrix Form
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+\frametitle{Main Part I: Summing Over All Springs}
+
+\begin{itemize}
+    \item Sum the spring potentials over all springs (indexed by $\mathbf{p_i}, i=1,\ldots,s$). For each spring $i$ connecting particles with indices $(i_1,i_2)$, we have endpoints $\mathbf{p}_{i_1}$ and $\mathbf{p}_{i_2}$.
+    \item Stack all positions into a single vector:
+    \[
+    \mathbf{x}=(\mathbf{p}_1,\mathbf{p}_2,\ldots,\mathbf{p}_m)\in\mathbb{R}^{3m}.
+    \]
+    \item With the spring direction vectors $\mathbf{d}_i\in\mathbb{R}^3$ with $\|\mathbf{d}_i\|=r_i$, and the single spring has the potential $\frac{1}{2}k_i\Bigl(\|\mathbf{p}_{i1}-\mathbf{p}_{i2}\|-r_i\Bigr)^2,$ the overall spring energy becomes
+    \[
+    \frac{1}{2}\sum_{i=1}^s k_i\Bigl\|\mathbf{p}_{i_1}-\mathbf{p}_{i_2}-\mathbf{d}_i\Bigr\|^2.
+    \]
+    \item This can be rewritten in the form
+    \[
+    \frac{1}{2}\mathbf{x}^T\mathbf{L}\mathbf{x}-\mathbf{x}^T\mathbf{J}\mathbf{d} + (\text{constant}) (11),
+    \]
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Main Part II: Matrix Form}
+\small
+\textbf{Incidence Vectors $\mathbf{A}_i$ to express $\mathbf{p}_{i1}-\mathbf{p}_{i2}$}
+
+$\mathbf{A}_i \in \mathbb{R}^m$ (the shape depends on the number of particles)is the incidence vector between particles $i_1$ and $i_2$.
+Specifically,
+$\left(\mathbf{A}_i\right)_{i_1}=+1$,
+$\left(\mathbf{A}_i\right)_{i_2}=-1$,
+and 0 elsewhere.
+
+Consider a one-dimensional version of the particle positions $\mathbf{x}_{\text {(scalar) }}$. In the full 3D setting, we have $\mathbf{x}=\left(\mathbf{p}_1, \mathbf{p}_2, \ldots, \mathbf{p}_m\right) \in \mathbb{R}^{3 m}$
+with each $\mathbf{p}_i \in \mathbb{R}^3$. In a one-dimensional system, each particle's position is just a single number. So the analogous one-dimensional position vector would be $\mathbf{x}_{\text {(scalar) }}=\left(x_1, x_2, \ldots, x_m\right) \in \mathbb{R}^m$, where each $x_i$ is the coordinate of particle $i$ along the axis.
+so when we say $\left(\mathbf{A}_i\right)^{\top} \mathbf{x}_{(\text {scalar })}=x_{i_1}-x_{i_2}$
+
+Hence,
+$$
+\left(\mathbf{A}_i\right)^{\top} \mathbf{x}_{\text {(scalar) }}=x_{i_1}-x_{i_2} \quad \text { in 1D. }
+$$
+
+
+In 3D, we do the same but replicate this via a Kronecker product with the $3 \times 3$ identity, so that we have $\left(\mathbf{A}_i \otimes \mathbf{I}_3\right): \mathbb{R}^{3 m} \rightarrow \mathbb{R}^3$, and$
+\left(\mathbf{A}_i \otimes \mathbf{I}_3\right) \mathbf{x}=\mathbf{p}_{i_1}-\mathbf{p}_{i_2}$
+
+
+Therefore,
+$
+\mathbf{p}_{i_1}-\mathbf{p}_{i_2}=\left(\mathbf{A}_i \otimes \mathbf{I}_3\right) \mathbf{x}
+$
+
+\end{frame}
+
+\begin{frame}{Main Part II: Matirx Form}
+\textbf{Rewriting $\left\|\mathbf{p}_{i_1}-\mathbf{p}_{i_2}-\mathbf{d}_i\right\|^2$}
+
+Thus, for spring $i$ :
+
+$$
+k_i\left\|\mathbf{p}_{i_1}-\mathbf{p}_{i_2}-\mathbf{d}_i\right\|^2=k_i\left\|\left(\mathbf{A}_i \otimes \mathbf{I}_3\right) \mathbf{x}-\mathbf{d}_i\right\|^2
+$$
+
+
+When we sum over $i=1, \ldots, s$, we get
+
+$$
+\sum_{i=1}^s k_i\left\|\mathbf{p}_{i_1}-\mathbf{p}_{i_2}-\mathbf{d}_i\right\|^2=\sum_{i=1}^s k_i\left\|\left(\mathbf{A}_i \otimes \mathbf{I}_3\right) \mathbf{x}-\mathbf{d}_i\right\|^2
+$$
+
+
+We can expand each squared norm:
+
+$$
+k_i\left[\left(\left(\mathbf{A}_i \otimes \mathbf{I}_3\right) \mathbf{x}\right)^{\top}\left(\mathbf{A}_i \otimes \mathbf{I}_3\right) \mathbf{x}-2\left(\left(\mathbf{A}_i \otimes \mathbf{I}_3\right) \mathbf{x}\right)^{\top} \mathbf{d}_i+\left\|\mathbf{d}_i\right\|^2\right]
+$$
+
+
+Summing over $i$, we can rearrange the terms into:
+1. A quadratic form in $\mathbf{x}$.
+2. A cross term in $\mathbf{x}$ and $\mathbf{d}_i$.
+3. A term purely in $\mathbf{d}_i$.
+\end{frame}
+
+\begin{frame}{Main Part II: Matirx Form}
+\small
+\textbf{Collecting Terms into $\mathbf{L}$ and $\mathbf{J}$}
+Quadratic Form ( $\mathbf{x}^{\top} \mathbf{L x}$ )
+
+For the part in $\mathbf{x}$ alone,
+
+$$
+\sum_{i=1}^s k_i\left(\mathbf{A}_i \otimes \mathbf{I}_3\right)^{\top}\left(\mathbf{A}_i \otimes \mathbf{I}_3\right)=\left(\sum_{i=1}^s k_i \mathbf{A}_i \mathbf{A}_i^{\top}\right) \otimes \mathbf{I}_3
+$$
+
+
+Define the stiffness-weighted Laplacian in the scalar domain ( $m \times m$ ):
+
+$$
+\underbrace{\sum_{i=1}^s k_i \mathbf{A}_i \mathbf{A}_i^{\top}}_{\text {scalar Laplacian }} \in \mathbb{R}^{m \times m} .
+$$
+
+
+Then replicate it in 3D with the Kronecker product to form
+
+$$
+\mathbf{L}=\left(\sum_{i=1}^s k_i \mathbf{A}_i \mathbf{A}_i^{\top}\right) \otimes \mathbf{I}_3 \in \mathbb{R}^{3 m \times 3 m}
+$$
+
+
+
+
+\end{frame}
+
+\begin{frame}{Main Part II: Matirx Form}
+\small
+\textbf{Collecting Terms into $\mathbf{L}$ and $\mathbf{J}$(Continue):
+The Coupling Matrix $\mathbf{J}\left(-\mathbf{x}^{\top} \mathbf{J} \mathbf{d}\right)$}
+
+
+Next, for the cross term:
+$\sum_{i=1}^s\left(-2 k_i\left(\mathbf{A}_i \otimes \mathbf{I}_3\right) \mathbf{x}^{\top} \mathbf{d}_i\right)$
+
+We want to write this in the form $-2 \mathbf{x}^{\top} \mathbf{J} \mathbf{d}$.
+But note that $\mathbf{d}=\left(\mathbf{d}_1, \ldots, \mathbf{d}_s\right)$ is a single vector in $\mathbb{R}^{3 s}$. 
+
+To line up indices, we use indicator vectors $\mathbf{S}_i \in \mathbb{R}^s$, where $\mathbf{S}_i$ is 1 in the $i$-th entry and 0 elsewhere. Then:$
+\left(\mathbf{S}_i \otimes \mathbf{I}_3\right) \mathbf{d}=\mathbf{d}_i
+$
+
+
+So the cross term could be written as 
+$
+\sum_{i=1}^s-2 k_i\left(\mathbf{A}_i \otimes \mathbf{I}_3\right) \mathbf{x}^{\top}\left(\mathbf{S}_i \otimes \mathbf{I}_3\right) \mathbf{d}
+$
+
+
+We can factor out $\mathbf{x}^{\top}$ and $\mathbf{d}$ if we sum:
+$
+\sum_{i=1}^s-2 k_i\left(\mathbf{A}_i \otimes \mathbf{I}_3\right)\left(\mathbf{S}_i \otimes \mathbf{I}_3\right)^{\top}=-2\left(\sum_{i=1}^s k_i \mathbf{A}_i \mathbf{S}_i^{\top}\right) \otimes \mathbf{I}_3
+$
+
+
+Define the matrix $\mathbb{J}$
+$$
+\mathbf{J}=\left(\sum_{i=1}^s k_i \mathbf{A}_i \mathbf{S}_i^{\top}\right) \otimes \mathbf{I}_3 \in \mathbb{R}^{3 m \times 3 s}
+$$
+
+
+Then the cross term becomes$-2 \mathbf{x}^{\top} \mathbf{J}\mathbf{d}$ 
+\end{frame}
+
+\begin{frame}{Main Part II: Matirx Form}
+\small
+    \textbf{Wrap it up((Equation 11))}
+    Finally, each spring also yields a $\left\|\mathbf{d}_i\right\|^2$ piece, i.e.,
+
+$$
+\sum_{i=1}^s k_i\left\|\mathbf{d}_i\right\|^2=\sum_{i=1}^s k_i\left(\mathbf{d}_i\right)^{\top} \mathbf{d}_i=\sum_{i=1}^s k_i\left\|\mathbf{d}_i\right\|^2
+$$
+which is a constant. 
+
+
+Combine the three parts:
+1. Quadratic in $\mathbf{x}: \frac{1}{2} \mathbf{x}^{\top} \mathbf{L} \mathbf{x}$.
+2. Cross term in $\mathbf{x}$ and $\mathbf{d}:-\mathbf{x}^{\top} \mathbf{J} \mathbf{d}$.
+3. Constant in $\mathbf{d}: \frac{1}{2} \sum_{i=1}^s k_i\left\|\mathbf{d}_i\right\|^2$. which is usually omit
+
+Hence the total spring energy is
+$$
+\frac{1}{2} \sum_{i=1}^s k_i\left\|\mathbf{p}_{i_1}-\mathbf{p}_{i_2}-\mathbf{d}_i\right\|^2=\underbrace{\frac{1}{2} \mathbf{x}^{\top} \mathbf{L} \mathbf{x}}_{\text {"Laplacian" term }}-\underbrace{\mathbf{x}^{\top} \mathbf{J} \mathbf{d}}_{\text {"coupling" term }}+\underbrace{\frac{1}{2} \sum_{i=1}^s k_i\left\|\mathbf{d}_i\right\|^2}_{\text {constant}}
+$$
+
+
+\end{frame}
+
+\begin{frame}
+\small
+\frametitle{Code Helper for the Matrices}
+
+\textbf{Example: Three Particles with Two Springs}
+\begin{itemize}
+    \item \textbf{Coordinates:} $\mathbf{x}=[\mathbf{p}_1,\mathbf{p}_2,\mathbf{p}_3]^T,\quad \mathbf{p}_i\in\mathbb{R}^3,$,
+    so $\mathbf{x}\in\mathbb{R}^9$.
+    \item \textbf{Spring Directions:} 
+    \[
+    \mathbf{d}=[\mathbf{d}_1,\mathbf{d}_2]^T,\quad \mathbf{d}_i\in\mathbb{R}^3,
+    \]
+    hence $\mathbf{d}\in\mathbb{R}^6$.
+    \item \textbf{Incidence and Indicator Vectors:}
+
+        Spring 1 (connects particles 1 and 2):$A_1=\begin{pmatrix} 1 \\ -1 \\ 0 \end{pmatrix}, \quad S_1=\begin{pmatrix} 1 \\ 0 \end{pmatrix}.$   
+        \ 
+        Spring 2 (connects particles 2 and 3):
+        $A_2=\begin{pmatrix} 0 \\ 1 \\ -1 \end{pmatrix}, \quad S_2=\begin{pmatrix} 0 \\ 1 \end{pmatrix}.$
+        
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+    \begin{itemize}
+    \item \textbf{Constructing $\mathbf{L}$:}
+    \begin{enumerate}
+        \item Compute $A_iA_i^T$:
+        \[
+        A_1A_1^T=\begin{pmatrix} 1 & -1 & 0 \\ -1 & 1 & 0 \\ 0 & 0 & 0 \end{pmatrix},\quad
+        A_2A_2^T=\begin{pmatrix} 0 & 0 & 0 \\ 0 & 1 & -1 \\ 0 & -1 & 1 \end{pmatrix}.
+        \]
+        \item Sum with stiffness scaling:
+        \[
+        k_1A_1A_1^T+k_2A_2A_2^T=
+        \begin{pmatrix}
+        k_1 & -k_1 & 0 \\
+        -k_1 & k_1+k_2 & -k_2 \\
+        0 & -k_2 & k_2
+        \end{pmatrix}.
+        \]
+        \item Form the Kronecker product with $I_3$:
+        \[
+        \mathbf{L}=\Bigl(k_1A_1A_1^T+k_2A_2A_2^T\Bigr)\otimes I_3\in\mathbb{R}^{9\times 9}.
+        \]
+    \end{enumerate}
+
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+\begin{itemize}
+    \item \textbf{Constructing $\mathbf{J}$:}
+    \begin{enumerate}
+        \item Compute $A_iS_i^T$:
+        \[
+        A_1S_1^T=\begin{pmatrix} 1 & 0 \\ -1 & 0 \\ 0 & 0 \end{pmatrix},\quad
+        A_2S_2^T=\begin{pmatrix} 0 & 0 \\ 0 & 1 \\ 0 & -1 \end{pmatrix}.
+        \]
+        \item Sum with stiffness scaling:
+        \[
+        k_1A_1S_1^T+k_2A_2S_2^T=
+        \begin{pmatrix}
+        k_1 & 0 \\
+        -k_1 & k_2 \\
+        0 & -k_2
+        \end{pmatrix}.
+        \]
+        \item Form the Kronecker product with $I_3$:
+        \[
+        \mathbf{J}=\Bigl(k_1A_1S_1^T+k_2A_2S_2^T\Bigr)\otimes I_3\in\mathbb{R}^{9\times 6}.
+        \]
+    \end{enumerate}
+\end{itemize}
+
+\textbf{Physical Interpretation:}
+\begin{itemize}
+    \item $\mathbf{L}$ represents stiffness interactions between particles (diagonal blocks are self-stiffness; off-diagonals represent coupling).
+    \item $\mathbf{J}$ couples the spring directions to the particle displacements.
+\end{itemize}
+
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Slide 6: Main Part -- Adding External Forces and Defining $E(\mathbf{x})$
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+\frametitle{Main Part: Adding External Forces and Defining $E(\mathbf{x})$}
+\small
+\begin{itemize}
+    \item With external forces $\mathbf{f}_{\text{ext}}\in\mathbb{R}^{3m}$, a force corresponds to a potential term .
+    \item The total potential energy is given by
+    \[
+    E(\mathbf{x})=\min_{\mathbf{d}\in U}\; \frac{1}{2}\mathbf{x}^T\mathbf{L}\mathbf{x}-\mathbf{x}^T\mathbf{J}\mathbf{d}+\mathbf{x}^T\mathbf{f}_{\text{ext}},
+    \]
+    where
+    \[
+    U=\Bigl\{ (\mathbf{d}_1,\ldots,\mathbf{d}_s)\in\mathbb{R}^{3s}:\|\mathbf{d}_i\|=r_i \text{ for each } i\Bigr\}.
+    \]
+    
+\end{itemize}
+
+
+
+Recall that implicit Euler leads to minimizing
+\[
+g(\mathbf{x})=\frac{1}{2}(\mathbf{x}-\mathbf{y})^T\mathbf{M}(\mathbf{x}-\mathbf{y})+h^2\,E(\mathbf{x}) \text{ (equation 8)},
+\]
+with $\mathbf{y}$ containing known past location.
+
+
+Substituting the expression for $E(\mathbf{x})$, we have:
+\[
+\min_{\mathbf{x},\,\mathbf{d}\in U} \; \frac{1}{2}(\mathbf{x}-\mathbf{y})^T\mathbf{M}(\mathbf{x}-\mathbf{y})+h^2\Bigl(\frac{1}{2}\mathbf{x}^T\mathbf{L}\mathbf{x}-\mathbf{x}^T\mathbf{J}\mathbf{d}+\mathbf{x}^T\mathbf{f}_{\text{ext}}\Bigr).
+\]
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Main Part: Final Objective }
+\small
+This can be rearranged as:
+\[
+\min_{\mathbf{x},\,\mathbf{d}\in U} \; \frac{1}{2}\mathbf{x}^T\Bigl(\mathbf{M}+h^2\mathbf{L}\Bigr)\mathbf{x}-h^2\,\mathbf{x}^T\mathbf{J}\mathbf{d}+\mathbf{x}^T\mathbf{b} \text{ (equation 14)},
+\]
+where $\mathbf{b}$ collects the contributions from the inertia term and $\mathbf{f}_{\text{ext}}$.
+Assuming that gravity is the only external force, each particle $i$ has a force $\mathbf{f}_{\mathrm{grav}, i}=m_i \mathbf{g}$
+
+
+Expanding the inertia term gives a linear part in $\mathbf{x}$ of
+$-\mathbf{x}^{\top} \mathbf{M} \mathbf{y}$,
+where $\mathbf{y}=2 \mathbf{q}_n-\mathbf{q}_{n-1}$ ( with $\mathbf{x}=\mathbf{q}_{n+1}$ ). So we can have the formula for $\mathbf{b}$ is $\mathbf{b}=-\mathbf{M}\left(2 \mathbf{q}_n-\mathbf{q}_{n-1}\right)+h^2\left(\begin{array}{c}
+m_1 \mathbf{g} \\
+m_2 \mathbf{g} \\
+\vdots \\
+m_m \mathbf{g}
+\end{array}\right)
+$
+
+
+The whole target function can be solved via the linear system:
+\[
+\bigl(\mathbf{M}+h^2\mathbf{L}\bigr)\mathbf{x}=h^2\,\mathbf{J}\mathbf{d}-\mathbf{b}.
+\]
+\end{frame}
+
+\end{document}

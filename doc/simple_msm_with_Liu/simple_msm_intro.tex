@@ -1,0 +1,262 @@
+\documentclass{article}
+
+% PACKAGES
+\usepackage[margin=1in]{geometry} % For setting page margins
+\usepackage{graphicx}             % For including images
+\usepackage{hyperref}             % For hyperlinks (optional, but good practice)
+\usepackage{amsmath, amssymb}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs} % For professional-looking tables
+\usepackage{xcolor}   % For colored boxes
+\usepackage{listings}
+\begin{document}
+
+\section{Executive summary}
+\subsection{Why we need an alternative method to represent the spring potential energy}
+With $U(q)=\frac{1}{2} \sum_{e=(i, j)} k_e\left(\left\|q_i-q_j\right\|-L_e\right)^2$, fix one edge and set
+$d:=q_i-q_j, \quad \ell:=\|d\|, \quad n:=\frac{d}{\ell} .$
+
+\textbf{Gradient and the block $A_e$}
+
+we have:$\nabla_d \ell=n, \quad \nabla_d n=\frac{\partial n}{\partial d}=\frac{1}{\ell}\left(I-n n^{\top}\right) .$
+
+
+Hence
+$\nabla_d U_e=k_e\left(\ell-L_e\right) \nabla_d \ell=k_e\left(\ell-L_e\right) n,$
+
+so the endpoint forces are
+
+$$
+\frac{\partial U_e}{\partial q_i}=k_e\left(\ell-L_e\right) n, \quad \frac{\partial U_e}{\partial q_j}=-k_e\left(\ell-L_e\right) n .
+$$
+
+
+For the $3 \times 3$ Hessian w.r.t. $d$,
+
+$$
+\nabla_d^2 U_e=k_e \nabla_d\left[\left(\ell-L_e\right) n\right]=k_e\left[\left(\nabla_d \ell\right) n^{\top}+\left(\ell-L_e\right) \nabla_d n\right]=k_e\left[n n^{\top}+\frac{\ell-L_e}{\ell}\left(I-n n^{\top}\right)\right] .
+$$
+
+
+Equivalently,
+
+$$
+\nabla_d^2 U_e=k_e\left[\frac{\ell-L_e}{\ell} I+\frac{L_e}{\ell} n n^{\top}\right] .
+$$
+
+
+Map this to the stacked variables $\left[q_i ; q_j\right]$. Since $d=[I-I]\left[q_i ; q_j\right]$, let
+
+$$
+G:=\left[\begin{array}{ll}
+I & -I
+\end{array}\right] .
+$$
+
+
+Then the $6 \times 6$ edge Hessian is
+
+$$
+H_e=G^{\top}\left(\nabla_d^2 U_e\right) G=\left[\begin{array}{cc}
+A_e & -A_e \\
+-A_e & A_e
+\end{array}\right], \quad A_e=k_e\left[\frac{\ell-L_e}{\ell} I+\frac{L_e}{\ell} n n^{\top}\right] .
+$$
+
+\textbf{(Semi-)positive definiteness}
+\newline
+We then analyze the eigenvalues of $A_e$.
+
+Take any orthonormal basis $\left\{t_1, t_2, n\right\}$ with $t_1, t_2 \perp n$. we have:
+
+$$
+\nabla_d^2 U_e t=k_e \frac{\ell-L_e}{\ell} t \quad(\text { for } t \perp n), \quad \nabla_d^2 U_e n=k_e n .
+$$
+
+
+Therefore
+
+$$
+\operatorname{spec}\left(\nabla_d^2 U_e\right)=\left\{k_e, k_e \frac{\ell-L_e}{\ell}, k_e \frac{\ell-L_e}{\ell}\right\} .
+$$
+
+
+Consequences:
+
+- Stretch or rest ( $\ell \geq L_e$ ): the two tangential eigenvalues are $\geq 0$.
+
+- If $\ell>L_e: \nabla_d^2 U_e$ is PD.
+
+- If $\ell=L_e$ : it is PSD with rank 1 (eigenvalues $\left\{k_e, 0,0\right\}$ ).
+
+- Compression $\left(\ell<L_e\right)$ : the two tangential eigenvalues are negative, so $\nabla_d^2 U_e$ is indefinite.
+
+For the $6 \times 6$ Hessian $H_e$, translational invariance implies three zero eigenvalues (modes $[v ; v]$ ). On the relative subspace $[v ;-v]$,
+
+$$
+[v ;-v]^{\top} H_e[v ;-v]=2 v^{\top} A_e v,
+$$
+
+so the remaining three eigenvalues are $2 \lambda_j\left(A_e\right)$. Hence
+
+$$
+\operatorname{spec}\left(H_e\right)=\left\{0,0,0,2 \lambda_1\left(A_e\right), 2 \lambda_2\left(A_e\right), 2 \lambda_3\left(A_e\right)\right\} .
+$$
+
+
+Thus:
+
+- If $\ell \geq L_e, H_e$ is PSD (with three zeros from rigid translation, and additional zeros when $\ell=L_e$ ).
+
+- If $\ell<L_e, H_e$ is indefinite (one positive and two negative nonzero eigenvalues on the relative subspace).
+
+
+\subsection{Overview}
+1. Represent the mass–spring model using Liu et al.’s energy with auxiliary spring directions $D=\{d_e\}$:
+   $\displaystyle E(x)=\min_{d\in U}\ \tfrac12\,x^\top Lx - x^\top Jd + x^\top f$ (their Eq. 13). 
+This uses standard Hookean springs, with $L$ a stiffness-weighted graph Laplacian and $J$ a coupling matrix. ;
+\newline
+2. Lock motion to registration directions: $x=x'+Ps$ with $P=\mathrm{diag}(a_1,\dots,a_N)$ and $s\in\mathbb{R}^N$. Substituting into Eq. (13) gives a static local/global method:
+
+* Local step (per-edge projection): $d_e\leftarrow r_e\,\dfrac{(p_{i}-p_{j})}{\|p_{i}-p_{j}\|}$ (exact minimizer of a constrained least-squares, their Lemma / Eq. (10)). ;
+
+* Global step (linear solve): with $d$ fixed, solve
+
+$$
+K_s\,s=P^\top(Jd - f - Lx'),\quad K_s=P^\top L P.
+$$
+
+This is a convex strictly quadratic in $s$ with a semi positive definite matrix on the free DOFs. We can pre-assemble the edge sprase matrix once, and use matrix productions to generate new matrix with them. 
+\newline
+3. Impose Dirichlet by reordering to free $F$ vs fixed $D$:
+
+$(K_s)_{FF}\,s_F=\big[\,P^\top(Jd-f-Lx')\,\big]_F-(K_s)_{FD}s_D$.
+
+Alternate local/global until convergence. Both steps are exact minimizers in their variables, so the energy decreases monotonically. (Liu: local = projection; global = convex quadratic minimization.);
+
+There are the details:
+
+
+\section{Details and Proofs}
+\subsection{Setup and Notation}
+From the given data mesh files and image registartion, we can have:
+
+1. Reference endpoints $q'_i\in\mathbb{R}^3$; deformed endpoints $q_i\in\mathbb{R}^3$; stack $x=(p_1,\dots,p_m)\in\mathbb{R}^{3m}$.
+
+2. Each spring $e=(i,j)$ has stiffness $k_e0$ and rest length $r_e\ge 0$.
+
+3. Auxiliary “spring directions” $d_e\in\mathbb{R}^3$ with constraint $\|d_e\|=r_e$; stack $d\in\mathbb{R}^{3s}$; feasible set $U=\{d: \|d_e\|=r_e\ \forall e\}$.;
+
+4. Incidence vectors $A_e$ and indicators $S_e$ define
+  $\displaystyle L=\Big(\sum_e k_e A_eA_e^\top\Big)\otimes I_3$, $\displaystyle J=\Big(\sum_e k_e A_eS_e^\top\Big)\otimes I_3$. ;
+  “$L$ is a stiffness-weighted Laplacian.”;
+
+\subsection{Liu’s energy (Eq. 13) function to represent the Potential Energy}
+
+{\itshape
+Lemma (edge-wise reformulation; Liu’s Eq. (10))
+
+For endpoints $p_1,p_2\in\mathbb{R}^3$ and rest length $r\ge 0$,
+
+$$
+\big(\|p_1-p_2\|-r\big)^2\;=\;\min_{\|d\|=r}\,\|\, (p_1-p_2)-d\,\|^2.
+$$
+\newline
+Proof. Let $p_{12}:=p_1-p_2$. Using the reverse triangle inequality,
+$(\|p_{12}\|-\|d\|)^2\le \|p_{12}-d\|^2$. Set $d=r\,\dfrac{p_{12}}{\|p_{12}\|}$ to attain equality, hence the minimum equals $(\|p_{12}\|-r)^2$.} 
+
+Summing edges and some algebra yields (Liu’s Eq. (11)–(12)):
+
+$$
+\frac12\sum_e k_e\|p_{i}-p_{j}-d_e\|^2=\frac12\,x^\top Lx - x^\top J d.
+$$
+
+This establishes their potential $E(x)=\min_{d\in U}\frac12 x^\top Lx - x^\top J d + x^\top f$ (Eq. 13). ;
+
+
+Given registration directions $a_i$ (unit vectors), write
+
+$$
+x \;=\; x' + P s,\qquad P:=\mathrm{diag}(a_1,\dots,a_N)\in\mathbb{R}^{3N\times N}.
+$$
+
+(Dirichlet: split $s\to(s_F,s_D)$, with $s_D$ prescribed.)
+
+
+Substitute $x=x'+Ps$ into Eq. (13):
+
+$$
+\Psi(s;d)\;=\;\tfrac12(x'+Ps)^\top L(x'+Ps) \;-\;(x'+Ps)^\top Jd \;+\;(x'+Ps)^\top f .
+$$
+
+This is a two param optimization problem. 
+
+Firstly, we fix $d$, it's a convex strictly quadratic minimization
+
+$$
+\nabla_s\Psi \;=\; P^\top\!\big(L(x'+Ps)-Jd+f\big).
+$$
+
+Setting $\nabla_s\Psi=0$ gives the linear system
+
+$$
+K_s\,s \;=\; P^\top(Jd-f-Lx'),\qquad K_s=P^\top L P.
+$$
+\newline
+\textbf{SPD on free DOFs}
+
+With hard Dirichlet after removing rigid modes, $K_s$ restricted to free DOFs is SPD.
+{\itshape
+\newline
+Proof. For any $z\neq0$,
+
+$$
+z^\top K_s z = (Pz)^\top L (Pz).
+$$
+Using $L=\sum_e k_e (A_eA_e^\top)\otimes I_3$,
+
+$$
+(Pz)^\top L (Pz) = \sum_e k_e \big\|\big((A_e^\top\otimes I_3)P\big)\,z\big\|^2 \ge 0,
+$$
+with equality only if all edge differences along free nodes vanish, which Dirichlet excludes unless $z=0$. SPD.}
+\newline
+Then we fix $x$, it becomes Liu's project probelm.
+
+For each edge $e=(i,j)$,
+
+$$
+d_e \leftarrow r_e\ \frac{(p_i-p_j)}{\|p_i-p_j\|},
+$$
+
+which is the exact minimizer of $\min_{\|d_e\|=r_e}\| (p_i-p_j)-d_e\|^2$ by the Lemma above.
+\newline
+\textbf{Monotone descent and convergence to a stationary point}
+
+Each step solves its subproblem exactly, so
+
+$$
+\Psi(s^{k+1};d^{k+1}) \;\le\; \Psi(s^{k+1};d^{k}) \;\le\; \Psi(s^{k};d^{k}).
+$$
+
+$\Psi$ is bounded (nonnegative spring energy plus linear term under Dirichlet), hence the sequence of energies decreases and converges.
+
+
+
+
+
+ 
+
+
+\section{Implementation}
+1. Precompute $L,J$ from edges (Eq. 11–12).;
+\newline
+2. Build $P$ from registration directions; split into free vs fixed; factor $(K_s)_{FF}= (P^\top LP)_{FF}$ once.
+\newline
+3. Solver:
+
+Local: $d_e\leftarrow r_e\dfrac{(p_i-p_j)}{\|p_i-p_j\|}$ with $x=x'+Ps$.;\
+
+Global: $(K_s)_{FF}s_F=\big[P^\top(Jd-f-Lx')\big]_F-(K_s)_{FD}s_D$.
+
+\end{document}

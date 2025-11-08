@@ -19,39 +19,33 @@
 \begin{frame}[t]
   \frametitle{P1 -- A Simple Spring-Mass Analogy (2D cloth)}
   \begin{columns}[T,onlytextwidth]
-    \column{0.60\textwidth}
-      {\footnotesize
-      \textbf{A Simple Spring--Mass Model (2D cloth as intuition)}\\[0.4em]
-      \textbf{Mass points \& springs.} Cloth meshes (2D) are often modeled with masses at vertices and linear springs on edges.
-       \textbf{Stretch} springs penalize edge length changes; 
-
-       \textbf{shear} springs penalize angle change between warp; 
-
-       \textbf{bending} springs penalize changes along folds .\\[0.4em]
+    \column{0.66\textwidth}
+      \begin{minipage}[t]{0.96\linewidth}\small
+      \textbf{A Simple Spring--Mass Model (2D cloth as intuition)}\\[0.5em]
+      \textbf{Mass points \& springs.} Cloth meshes (2D) are often modeled with masses at vertices and linear springs on edges. \textbf{Stretch} springs penalize edge-length changes; \textbf{shear} springs penalize angle change between warp/weft; optional \textbf{bending} springs penalize dihedral changes along folds \cite{bourguignon2000anisotropy,lakhal2013modified}.\\[0.5em]
       \textbf{Energy (schematic).}
-      \begin{itemize}
-        \item
-          \(
-            U_{\text{cloth}} = \tfrac{1}{2} \! \sum_{(i,j)\in E} k_s \big(\|X_i - X_j\| - \|x_i - x_j\|\big)^2
-          \)
-      \end{itemize}
-      Differentiation gives \textbf{internal forces} that are linear in displacements around the rest state.\\[0.4em]
+      \[
+        U_{\text{cloth}} = \tfrac{1}{2} \sum_{(i,j)\in E} k_s \big(\|X_i - X_j\| - \|x_i - x_j\|\big)^2
+      \]
       
-      }
-    \column{0.34\textwidth}
+      \end{minipage}
+    \column{0.28\textwidth}
       \vspace*{\fill}
-      \begin{flushright}
-        \includegraphics[width=1.15\linewidth]{fig2.0.png}\\[-0.3em]
-      \end{flushright}
+      \centering
+      \includegraphics[width=1.2\linewidth]{fig2.0.png}
   \end{columns}
-  Our 3D \textbf{SMS (for tetrahedra)}  follows the same idea:
-      we define simple view of deformation along a few directions and build a \textbf{quadratic energy}, 
-      whose gradient gives internal forces and whose Hessian gives a \textbf{global stiffness}. The next pages lift this intuition to 3D tets with anisotropy\cite{bourguignon2000anisotropy,lakhal2013modified}.
+  Differentiation gives \textbf{internal forces} that are linear in displacements around the rest state.\\
+  Our 3D \textbf{SMS (for tetrahedra)} follows the same idea: 
+  we define simple measurements of deformation along a few directions and 
+  build a \textbf{quadratic energy}, whose gradient gives internal forces 
+  and whose Hessian gives a \textbf{global stiffness}. 
+  
 \end{frame}
 
 % Slide 2
 \begin{frame}
   \frametitle{P2 -- Notation and Problem Setup}
+  Now we use the previous intuition to 3D tets with anisotropy.
   \begin{itemize}
     \item \textbf{Tetrahedral mesh with $N$ vertices.}
       \[

@@ -1,0 +1,893 @@
+\documentclass{article}
+
+% PACKAGES
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{amsfonts}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+% Define theorem environments
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+
+% Custom commands for consistent notation
+\newcommand{\vect}[1]{\mathbf{#1}}
+\newcommand{\mat}[1]{\mathbf{#1}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\inner}[2]{\langle #1, #2 \rangle}
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\dd}[2]{\frac{d #1}{d #2}}
+
+\begin{document}
+
+% Conventions:
+%  - Bold lowercase: vectors (e.g., \mathbf x, \mathbf u); bold uppercase: stacked DOFs (e.g., \mathbf X)
+%  - Reference (undeformed) positions: \mathbf x; Deformed (current) positions: \mathbf X
+%  - Deformation gradient: F (also denoted \alpha), with \mathbf X = F \mathbf x + \mathbf b and F = D_s D_m^{-1}
+%  - Identity: I or I_3; Kronecker product: \otimes; Frobenius inner: A:B=\tr(A^\top B)
+%  - Tetrahedra: t=1,\dots,M; Vertices: i=1,\dots,N; Springs: s=1,\dots,S (S=3M for axial-only)
+%  - Anisotropy axes: e_0,e_1,e_2 (orthonormal, right-handed); axis endpoints in a tet: six intersections q_j
+
+% Keep the author's banner line as requested:
+mesh from the anchor image + deformation direction + stiffness params $\rightarrow$ vertex deformation positions
+
+% -----------------------------------------------------------------------------
+
+
+\section{Mathematical Framework}
+
+\subsection{Notation and Problem Setup}
+
+Consider a tetrahedral mesh with $N$ vertices. We denote the reference and deformed configurations as
+\begin{equation}
+\vect{x} \in \R^{3N}, \quad \vect{X} \in \R^{3N},
+\end{equation}
+where $\vect{x}$ stacks all vertex positions in the reference (undeformed) configuration, and $\vect{X}$ represents the current (deformed) state.
+
+The image registration provides a nodewise displacement field $\vect{u} \in \R^{3N}$. This displacement field can be used to prescribe Dirichlet boundary conditions:
+\begin{equation}
+\vect{X}_i = \vect{x}_i + \vect{u}_i, \quad i = 1, \ldots, N.
+\end{equation}
+
+For each tetrahedron $\mathcal{V}_t$, we denote its vertices by $x_{t1}, x_{t2}, x_{t3}, x_{t4}$ and its barycenter by $x_{tb}$. A triangular face is denoted as $S_{\Delta t1,t2,t3}$ with vertices $x_{t1}, x_{t2}, x_{t3}$. Intersection points $p$ on the surface are determined along the anisotropy axes, which in turn govern the Hookean spring.
+
+The system reaches static equilibrium by solving for the free degrees of freedom $\vect{X}_F$ such that the internal elastic forces are exactly balanced by external loads.
+
+\subsection{Topology for Volumetric Mesh}
+\textbf{Intersection Points \& Coefficient Matrix}
+
+In each tetrahedral element $\mathcal V_k$, we locate six intersection points $q_{j}$\cite{bourguignon2000anisotropy, lakhal2013modified}
+ by ray-casting from the \textbf{barycenter} $x_b$ along the three anisotropy axes to the faces. At the same time we build a $4\times6$ coefficient matrix $C^k$ whose entries let us reconstruct any intersection $q_j$ from the four vertex positions.
+
+\begin{enumerate}
+    \item \textbf{Barycenter}
+    
+    where $x_i$ are the four vertex coordinates.
+    \begin{equation}
+        x_b \;=\;\frac{1}{4}\sum_{i=1}^4 x_i
+        \tag{2.22}
+        \label{eq:barycenter}
+    \end{equation}
+
+    \item \textbf{Point-in-triangle test \& barycentric coords}
+    
+    A traced point $q_j$ on face $\Delta_{i_1i_2i_3}$ is inside if and only if
+    \begin{equation}
+        S_{\Delta_{i_1i_2i_3}} \;=\; S_{\Delta_{q_j\,i_2\,i_3}} + S_{\Delta_{i_1\,q_j\,i_3}} + S_{\Delta_{i_1\,i_2\,q_j}}.
+        \tag{2.23}
+        \label{eq:point_in_triangle}
+    \end{equation}
+    Then its local (area) coordinates on that triangle are
+    \begin{equation}
+        \xi=\frac{S_{\Delta_{q_j\,i_2\,i_3}}}{S_{\Delta_{i_1i_2i_3}}},\quad
+        \eta=\frac{S_{\Delta_{q_j\,i_1\,i_3}}}{S_{\Delta_{i_1i_2i_3}}}, \quad
+        1-\xi-\eta=\frac{S_{\Delta_{i_1\,i_2\,q_j}}}{S_{\Delta_{i_1i_2i_3}}}.
+        \tag{2.24}
+        \label{eq:barycentric_coords}
+    \end{equation}
+    
+    \item \textbf{Building the coefficient matrix $C^k$}
+    \begin{figure}[!ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/fig2.6.jpg}
+    \caption{Intersection points in a tetrahedral volume element: The tetrahedron with three axes of anisotropy set at the barycenter and the six intersection points that they define (a), a triangular face of the element containing an intersection point and the coefficients $\xi_{0}$ and $\eta_{0}$ related to the intersection point. Note that $\xi$ increases with the cyan color gradient starting from $\xi=0$ at the line segment ($p_{1}, p_{2}$) and is equal to $\xi=1$ at $p_{3}$, while $\eta$ increases along the orange color gradient starting from $\eta=0$ at ($p_{2}, p_{3}$) until it reaches $\eta=1$ at $p_{1}$ (b).}
+    \label{fig:intersections}
+\end{figure}
+
+    For each intersection $q_j$ we evaluate the four linear shape-functions $N_i$ of the tetrahedron’s nodes $i=1\ldots4$. On the face containing $q_j$, those coincide with the barycentric coordinates:
+    $$
+    \begin{cases}
+        N_{i_1}(q_j)=1-\xi-\eta,\\
+        N_{i_2}(q_j)=\xi,\\
+        N_{i_3}(q_j)=\eta,\\
+        N_{i_4}(q_j)=0,
+    \end{cases}
+    $$
+    where $\{i_1,i_2,i_3\}$ are the face nodes and $i_4$ is the opposite vertex. We then set
+    $$
+    C^k_{ij}\;=\;N_i\bigl(q_j\bigr),
+    $$
+    assembling a $4\times6$ matrix whose $j$-th column holds the four shape-function values at $q_j$.
+
+    \item \textbf{Updating intersections}
+    
+    At runtime, once the current vertex positions $x^t_i$ are known, each intersection moves as
+    \begin{equation}
+        x^t_j \;=\;\sum_{i=1}^4 C^k_{ij}\;x^t_i
+        \tag{2.25}
+        \label{eq:update_intersections}
+    \end{equation}
+    reproducing the straight-sided mapping of a linear tetrahedron.
+    
+    In the implementation the six $q_j$ and the corresponding $C_k$
+  are updated each step to remain exact under large deformation.
+\end{enumerate}
+
+\subsection{Internal Forces}
+
+Internal (“deformation”) forces in each tetrahedron are computed by \textbf{three axial springs} along the anisotropy axes, plus \textbf{three torsion springs} coupling each pair of axes. See Fig. \ref{fig:springs}. The angle $\alpha_{\mathrm{lm}}^{t}$ between the axes $\zeta_{\mathrm{l}}$ and $\zeta_{\mathrm{m}}$ can be given by... % This sentence from the prompt seems incomplete.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/fig2.12.jpg}
+    \caption{A tetrahedron with three axial springs (in cyan) along the axes of anisotropy and three torsion springs in the barycenter of the tetrahedron (in violet).}
+    \label{fig:springs}
+\end{figure}
+
+\subsubsection{Axial Springs}
+\begin{itemize}
+    \item \textbf{Axis vectors}: Along axis $\ell\in\{1,2,3\}$, let the two intersection points be $q_{\ell,1}$ and $q_{\ell,2}$. Their current axis vector is
+    $$
+    \zeta_\ell^t = x^t_{q_{\ell,1}} - x^t_{q_{\ell,2}}.
+    $$
+    
+    \item \textbf{Initial length} (at $t=0$):
+    \begin{equation}
+    l^0_\ell = \|\zeta_\ell^0\| = \bigl\|\,x^0_{q_{\ell,1}}-x^0_{q_{\ell,2}}\,\bigr\|.
+    \tag{2.30}
+    \label{eq:initial_length}
+    \end{equation}
+    
+    \item \textbf{Unit direction}:
+    \begin{equation}
+    \hat\zeta_\ell^t = \frac{\zeta_\ell^t}{\|\zeta_\ell^t\|}.
+    \tag{2.31}
+    \label{eq:unit_direction}
+    \end{equation}
+    
+    \item \textbf{Hooke’s law} (linear axial force):
+    \begin{equation}
+    \boxed{
+    f^{t}_{\ell,\,\mathrm{axial}} = -\,k_\ell\bigl(\|\zeta_\ell^t\| - \|\zeta_\ell^0\|\bigr)\,\hat\zeta_\ell^t
+    }
+    \tag{2.35}
+    \label{eq:hookes_law}
+    \end{equation}
+    where $k_\ell$ is the stiffness constant.
+\end{itemize}
+
+
+\subsubsection{Torsion Springs}
+To capture bending resistance between each pair of anisotropy axes in a tetrahedron, we introduce \textbf{torsion springs}. These springs penalize deviations of the angles between axes from their rest values.
+
+\paragraph{1. Angle between two axes}
+For any two axes $\ell$ and $m$, the angle is
+\begin{equation}
+\alpha^t_{\ell m} = \arccos\bigl(\hat\zeta_\ell^t \!\cdot\! \hat\zeta_m^t\bigr), \quad \alpha^0_{\ell m} = \alpha_{\ell m}^{t=0}
+\tag{2.32}
+\label{eq:angle_between_axes}
+\end{equation}
+where $\hat\zeta_\ell^t$ and $\hat\zeta_m^t$ are the unit–direction vectors at time $t$, and $\alpha^0_{\ell m}$ is the \textbf{rest angle}, measured in the undeformed configuration.
+
+\paragraph{2. Decomposing the torsion force}
+At each intersection point on axis $\ell$, the net torsion force $f_{\ell,1}$ splits into three orthogonal components:
+\begin{equation}
+f_{\ell,1} = f_S(\zeta_\ell,\alpha_{\ell m},\alpha_{\ell n})\,\hat\zeta_\ell + f_\tau(\zeta_\ell,\alpha_{\ell m},\alpha_{\ell n})\,\hat\zeta_m + f_\tau(\zeta_\ell,\alpha_{\ell m},\alpha_{\ell n})\,\hat\zeta_n,
+\tag{2.33}
+\label{eq:torsion_decomp}
+\end{equation}
+with $f_{\ell,2} = -\,f_{\ell,1}$, and $\{m,n\}$ are the other two axes.
+\begin{itemize}
+    \item \textbf{Axial} component $f_S$ acts along $\hat\zeta_\ell$.
+    \item \textbf{Torsional} components $f_\tau$ lie in the planes $(\hat\zeta_\ell,\hat\zeta_m)$ and $(\hat\zeta_\ell,\hat\zeta_n)$.
+\end{itemize}
+
+\paragraph{Expressions for $f_S$ and $f_\tau$}
+We derive both from simple spring energies: $f_S = -\,\frac{\mathrm dU_S}{\mathrm d\|\zeta_\ell\|}$.
+\begin{quote}
+In a conservative spring model, the force along a single coordinate $x$ is the negative derivative of its potential energy:
+$$ F(x) = -\,\frac{\mathrm d}{\mathrm d x}\,U(x). $$
+Here our “coordinate” is the current length $\|\zeta_\ell\|$, so the axial force magnitude is
+$$ f_S = -\,\frac{\mathrm d}{\mathrm d \|\zeta_\ell\|}\,U_S. $$
+\end{quote}
+\begin{enumerate}
+    \item \textbf{Axial term}: Define $U_S = \tfrac12\,k_\ell\bigl(\|\zeta_\ell^t\| - \|\zeta_\ell^0\|\bigr)^2$. Then
+    $$
+    f_S = -\,\frac{\mathrm d}{\mathrm d \|\zeta_\ell\|} \Bigl[\tfrac12\,k_\ell(\|\zeta_\ell\|-\|\zeta_\ell^0\|)^2\Bigr] = -\,k_\ell\bigl(\|\zeta_\ell^t\|-\|\zeta_\ell^0\|\bigr),
+    $$
+    and the vector is $\mathbf f_S = f_S\,\hat\zeta_\ell$.
+
+    \item \textbf{Torsional terms}: Define $U_\tau = \tfrac12\sum_{p\in\{m,n\}} k_{\ell p}\,\bigl(\alpha^t_{\ell p}-\alpha^0_{\ell p}\bigr)^2$. Differentiating with respect to each angle gives
+    $$
+    f_\tau(\zeta_\ell,\alpha_{\ell m},\alpha_{\ell n}) = -\,k_{\ell m}\,\bigl(\alpha^t_{\ell m}-\alpha^0_{\ell m}\bigr),
+    $$
+    and similarly for $(\ell,n)$.
+\end{enumerate}
+
+\paragraph{3. Linear torsion-spring model}
+\begin{equation}
+\boxed{
+f^t_{\ell\to m} = -\,k_{\ell m}\,\bigl(\alpha^t_{\ell m}-\alpha^0_{\ell m}\bigr)\,\hat\zeta_m^t,
+}
+\quad
+f^t_{m\to \ell}=-\,f^t_{\ell\to m}.
+\tag{2.40–2.41}
+\label{eq:linear_torsion}
+\end{equation}
+
+\paragraph{4. Cosine-approximation (small-angle)}
+When axes remain near orthogonal, $\alpha^t_{\ell m}-\alpha^0_{\ell m} \approx (\hat\zeta_\ell^t\!\cdot\!\hat\zeta_m^t) - (\hat\zeta_\ell^0\!\cdot\!\hat\zeta_m^0)$. Thus
+\begin{equation}
+\boxed{
+f^t_{\ell\to m} = -\,k_{\ell m}\,\bigl((\hat\zeta_\ell^t\!\cdot\!\hat\zeta_m^t) - (\hat\zeta_\ell^0\!\cdot\!\hat\zeta_m^0)\bigr)\,\hat\zeta_m^t,
+}
+\quad
+f^t_{m\to \ell} = -\,k_{\ell m}\,\bigl((\hat\zeta_\ell^t\!\cdot\!\hat\zeta_m^t) - (\hat\zeta_\ell^0\!\cdot\!\hat\zeta_m^0)\bigr)\,\hat\zeta_\ell^t.
+\tag{2.44–2.45}
+\label{eq:cosine_torsion}
+\end{equation}
+
+\paragraph{Assembly} Each tetrahedron contributes:
+\begin{itemize}
+    \item 6 axial-spring forces, and
+    \item 6 torsion-spring forces,
+\end{itemize}
+which are then distributed to the four vertices via the shape-function coefficients $C^k$ and summed with any body forces before time integration.
+
+
+
+% =====================  AXIS OF ANISOTROPY  ==================================
+\subsection{Axis of Anisotropy}
+In \cite{bourguignon2000anisotropy}, the axis of each tetrahedron is prescribed rather than derived from data. In contrast, in our setting, we start with a mesh extracted from CT images and deformation fields obtained through image registration. This allows us to compute the deformation of each tetrahedron directly from the displacements of its vertices. Subsequently, we determine the principal deformation axes of the tetrahedron using singular value decomposition (SVD).
+
+\subsubsection{Get the deformation direction}
+Firstly, the image registration gives us a displacement vector field $\mathbf{u}_i$ at each node 
+$X_i$ of the tetrahedral mesh. It's interpolated to get the displacement at each node. 
+For each node, it's a one 3-vector. Then we can have the ground truth position of each node $X_i = x_i + u_i$. 
+Within each tetra (with local nodes 0,1,2,3): we have: 
+$$D_m = [ X_1-X_0 ,  X_2-X_0 ,  X_3-X_0], 
+d_x = [ x_1-x_0 ,  x_2-x_0 ,  x_3-x_0]$$
+Both are 3×3 matrices built purely from known $X_i$ and $x_i$.
+
+Assume that within this tetra the mapping $X \to x$ is affine: $x = F·X + \text{const}$, 
+where $F$ is a constant 3×3 matrix (the deformation gradient) which is equivariant to  the deformation gradient
+ and $\text{const}$ is a translation. 
+
+Write this equation for all four vertices $X_i \to x_i$: $x_i = F \cdot X_i + \text{const}$, for $i=0,1,2,3$
+
+Eliminate $\text{const}$ by subtracting we can have:
+
+$x_1 - x_0 = F \cdot (X_1 - X_0), $
+$x_2 - x_0 = F \cdot (X_2 - X_0), $
+$x_3 - x_0 = F \cdot (X_3 - X_0). $
+
+Pack these three edge‐differences into matrices
+$$d_x = [ x_1-x_0 , x_2-x_0 , x_3-x_0 ], \quad 
+D_m = [ X_1-X_0 , X_2-X_0 , X_3-X_0 ].$$
+
+We can rewrite the above equations as:
+$$d_x = F \cdot D_m.$$
+
+Because $D_m$ is invertible (non-degenerate tetra), we can express$F$: $F = d_x \cdot D_m^{-1}$
+
+\subsubsection{Set the anisotropy axes from $F$}
+The transformation $F$ could be factorized via SVD:
+
+Factor $F = U \cdot \Sigma \cdot V^T$, where 
+$\Sigma = \text{diag}(\lambda_0,\lambda_1,\lambda_2)$, 
+and $\lambda_0 \geq \lambda_1 \geq \lambda_2$, 
+Columns $v_0,v_1,v_2$ of $V$ are orthonormal principal‐stretch directions in the reference frame.
+
+With this, we can assign the anisotropy axes as follows:
+\begin{itemize}
+  \item $e_0 = v_0$ (largest stretch direction),
+  \item $e_1 = v_1$ (second stretch direction),
+  \item $e_2 = v_2$ (third stretch direction).
+\end{itemize}
+The axes $e_0,e_1,e_2$ are orthonormal, and the eigenvalues $\lambda_0,\lambda_1,\lambda_2$ are the principal stretches along these axes.
+
+Note that, in right handed co-coordinate axis, $(e_0 \times e_1)$ is the direction of $e_2$. 
+So if $(e_0 \times e_1) \cdot e_2 < 0$, swap $e_1$ and $e_2$ to keep $e_0,e_1,e_2$ form a right-hand basis.
+
+
+
+\subsubsection{Handling Degenerate or Near‐Rigid Tetrahedra}
+
+In the extraction of anisotropy axes via the SVD , two pathological scenarios can undermine
+numerical stability and physical fidelity: element inversion or severe compression, and near‐rigid motion.  
+We therefore introduce a descriptive two‐branch fallback strategy.
+
+\paragraph{1. Inverted or Highly Compressed Elements}
+
+When an element inverts (\(\det(\mathbf \alpha)\le0\)) or one principal stretch becomes negligible 
+compared to the largest (\(\lambda_{2}\ll\lambda_{0}\)), 
+the SVD directions lose their intended meaning and may fluctuate wildly.  
+In this case we replace the SVD axes with a stable, displacement‐based frame:
+
+\begin{enumerate}
+  \item Compute the mean nodal displacement
+    \[
+      \bar{\mathbf u}
+      = \tfrac{1}{4}\bigl(\mathbf u_{0} + \mathbf u_{1} + \mathbf u_{2} + \mathbf u_{3}\bigr).
+    \]
+    This vector represents the overall deformation trend of the tetrahedron.
+    And the tetra deform mainly along this direction.
+  \item If \(\|\bar{\mathbf u}\|>\varepsilon\), define the first axis by normalizing:
+    \[
+      \mathbf e_{0}
+      = \frac{\bar{\mathbf u}}{\|\bar{\mathbf u}\|}.
+    \]
+    This ensures \(\mathbf e_{0}\) aligns with the dominant displacement direction.
+  \item To obtain a second orthogonal direction, select a reference edge \(\mathbf r = \mathbf X_{1}-\mathbf X_{0}\) and remove its component along \(\mathbf e_{0}\):
+    \[
+      \mathbf e_{1}
+      = \frac{\mathbf r - (\mathbf r\cdot\mathbf e_{0})\,\mathbf e_{0}}
+             {\bigl\|\mathbf r - (\mathbf r\cdot\mathbf e_{0})\,\mathbf e_{0}\bigr\|}.
+    \]
+    This guarantees \(\mathbf e_{1}\perp\mathbf e_{0}\).
+  \item Define the third axis by the right‐hand rule:
+    \[
+      \mathbf e_{2} = \mathbf e_{0}\times \mathbf e_{1}.
+    \]
+\end{enumerate}
+If instead \(\|\bar{\mathbf u}\|\le\varepsilon\), the element is effectively stationary and we retain the previous axes to prevent introducing noise.
+
+\paragraph{2. Nearly Rigid Elements}  
+When all principal stretches are close to unity (\(\lvert\lambda_{i}-1\rvert<\varepsilon\) for \(i=0,1,2\)), 
+the tetrahedron undergoes almost pure rigid‐body motion.  
+In this regime the SVD directions are well defined in theory 
+but even a slight numerical difference will cause the direction to constantly shift slightly.
+Here we simply preserve the last computed 
+\(\{\mathbf e_{0},\mathbf e_{1},\mathbf e_{2}\}\) until a significant deformation occurs.
+
+\bigskip
+Here, \(\{\lambda_{0},\lambda_{1},\lambda_{2}\}\) are the singular values of \(\mathbf \alpha\) 
+sorted so that \(\lambda_{0}\ge\lambda_{1}\ge\lambda_{2}\), 
+and \(\varepsilon\) is a small threshold (e.g.\ \(10^{-6}\)).  
+
+In the Taichi field for tetra:
+\begin{lstlisting}[language=Python]
+anisotropy_axes = ti.Vector.field(3, dtype=ti.f32, shape=(num_tetrahedra, 3))
+anisotropy_axes[i,0] = e0
+anisotropy_axes[i,1] = e1
+anisotropy_axes[i,2] = e2
+\end{lstlisting}
+
+
+\subsection{Assemble Whole System}
+We now stack the matrix with:
+
+Vertices (global DOFs):
+$\displaystyle \mathbf x\in\mathbb R^{3N}$ stacks $(x_{1x},x_{1y},x_{1z},\dots,x_{Nx},x_{Ny},x_{Nz})^\top$.
+
+For each tetra $t$ with global vertex indices $(i_0,i_1,i_2,i_3)$, stack its 4 vertex DOFs as
+$\displaystyle \mathbf x_t\in\mathbb R^{12}$.
+
+Intersection points inside tetra $t$: there are 6 of them (two per axis); stack as
+$\displaystyle \mathbf q_t\in\mathbb R^{18}$ (6 points × 3 coords).
+
+Three axial springs per tetra; their endpoint pairs among the 6 intersections are $(a_s,b_s)$, $s=1,2,3$.
+
+We stack all tets’ intersections as
+$\displaystyle \mathbf q = \big[\mathbf q_1^\top\;\cdots\;\mathbf q_M^\top\big]^\top \in \mathbb R^{18M}$,
+and all spring differences as
+$\displaystyle \Delta = \big[\Delta_1^\top\;\cdots\;\Delta_{3M}^\top\big]^\top \in \mathbb R^{3S},\ S=3M$.
+
+
+
+Then use a distribution matrix $B$ mapping vertex to intersections
+
+We already have per-tet interpolation coefficients $C_t\in\mathbb R^{6\times 4}$ such that, for tetra $t$,
+
+$$
+\mathbf q_t \;=\; (C_t\otimes I_3)\,\mathbf x_t .
+$$
+
+Let $P_t\in\{0,1\}^{12\times 3N}$ be the selection that extracts the 4 vertices of tetra $t$ (with xyz per vertex) from the global vector $\mathbf x$, i.e. $\mathbf x_t=P_t\,\mathbf x$. Then
+
+$$
+\mathbf q_t \;=\; (C_t\otimes I_3)\,P_t\,\mathbf x .
+$$
+
+Stacking all tets by vertical concatenation gives the global sparse operator
+
+$$
+\boxed{\;
+B \;=\;
+\begin{bmatrix}
+(C_1\!\otimes I_3)P_1\\
+\vdots\\
+(C_M\!\otimes I_3)P_M
+\end{bmatrix}
+\;\in\;\mathbb R^{(18M)\times(3N)},\qquad
+\mathbf q \;=\; B\,\mathbf x .
+\;}
+$$
+
+In code we store $C_t$ as `self.C\_t[t, vertex, point]` (shape $4\times 6$). In the math above we use $C_t$ as $6\times 4$. So
+
+$$
+C_t(j,a) \;=\; \texttt{self.C\_t}[t,\,a,\,j].
+$$
+
+When building $B$, for each tet $t$, for each intersection $j\in\{0,\dots,5\}$, and for each vertex $a\in\{0,\dots,3\}$, add the $3\times 3$ bloct $C_t(j,a)\,I_3$ at the row block of $(t,j)$ and the column block of global vertex $i_a$.
+
+Also, we define a global incidence matrix $M$ mapping intersections to spring differences
+
+For one spring $s$ inside tetra $t$, let $a_s,b_s\in\{0,\dots,5\}$ be its two endpoints in the 6 intersections. Define the 6-vector
+
+$$
+d_s \;=\; e_{b_s}-e_{a_s}\in\mathbb R^{6},
+$$
+
+and its 3D lifting
+
+$$
+M_{t,s} \;=\; d_s^{\!\top}\otimes I_3 \;\in\; \mathbb R^{3\times 18},
+\qquad
+\Delta_{t,s} \;=\; M_{t,s}\,\mathbf q_t \;=\; \mathbf q_{b_s}-\mathbf q_{a_s}.
+$$
+
+Stack the three springs of tetra $t$ as
+
+$$
+M_t \;=\;
+\begin{bmatrix}
+d_1^{\!\top}\!\otimes I_3\\[2pt]
+d_2^{\!\top}\!\otimes I_3\\[2pt]
+d_3^{\!\top}\!\otimes I_3
+\end{bmatrix}
+\;\in\; \mathbb R^{9\times 18},
+\qquad
+\Delta_t \;=\; M_t\,\mathbf q_t .
+$$
+
+Finally, block-diagonal over tets:
+
+$$
+\boxed{\;
+M \;=\; \operatorname{blkdiag}(M_1,\dots,M_M)\;\in\;\mathbb R^{(3S)\times(18M)},
+\qquad
+\Delta \;=\; M\,\mathbf q \;=\; M\,B\,\mathbf x .
+\;}
+$$
+
+This is exactly the compact identity we used before:
+
+$$
+\boxed{\;A_0 \;=\; M\,B\ \in \mathbb R^{(3S)\times(3N)},\qquad \Delta \;=\; A_0\,\mathbf x.\;}
+$$
+
+\textbf{Dimension check}:
+$C_t$ is $6\times 4$, $P_t$ is $12\times 3N \rightarrow (C_t\!\otimes I_3)P_t$ is $18\times 3N$.
+Stack $M$ as blkdiag of 
+$M_t\in\mathbb R^{9\times 18} \rightarrow   tM\in\mathbb R^{(9M)\times(18M)}=(3S)\times(18M)$.
+Hence $B\in\mathbb R^{(18M)\times(3N)}$ and $A_0=MB\in\mathbb R^{(3S)\times(3N)}$.
+
+
+
+
+A global distribution $B\in\mathbb R^{(3S)\times(3N)}$ taking vertex DOFs to all spring endpoints differences via a global incidence $M$:
+
+$$
+\Delta \;=\; A_0\,\mathbf x,\qquad A_0:=M\,B\in\mathbb R^{(3S)\times(3N)}.
+$$
+
+Here $S$ is the number of axial springs (3 per tet), and $\Delta$ stacks all spring 3-vectors $\Delta_s=\mathbf q_{b_s}-\mathbf q_{a_s}$.
+
+For each spring $s$, define its unit direction
+
+$$
+\mathbf n_s \;=\; \frac{\Delta_s}{\|\Delta_s\|},\qquad
+N_s=\mathbf n_s\mathbf n_s^\top\in\mathbb R^{3\times 3}.
+$$
+
+Stack the $3\times 3$ blocks into a block-diagonal projector
+
+$$
+\mathcal N \;=\; \operatorname{blkdiag}(N_1,\dots,N_S)\in\mathbb R^{(3S)\times(3S)}.
+$$
+
+Stiffnesses $t_s>0$ (one per spring) define the block-diagonal
+
+$$
+\mathcal K \;=\; \operatorname{blkdiag}(k_1 I_3,\dots,k_S I_3)\in\mathbb R^{(3S)\times(3S)}.
+$$
+
+the free–free tangent and internal force
+
+$$
+K_{FF} \;=\; A_{0F}^\top(\mathcal K\,\mathcal N)\,A_{0F},\qquad
+\mathbf f_{F} \;=\; A_{0F}^\top\,\mathbf y,
+$$
+
+where $A_{0F}$ is $A_0$ with columns restricted to free DOFs, and $\mathbf y\in\mathbb R^{3S}$ stacks per-spring endpoint forces
+
+$$
+\mathbf y \;=\; \operatorname{blkdiag}(k_1\mathbf n_1,\dots,k_S\mathbf n_S)\ \mathrm{ext},
+\quad
+\mathrm{ext}_s \;=\; \mathbf n_s^\top\Delta_s - L_{0,s}.
+$$
+
+(Here $L_{0,s}$ is the rest length along the axis.)
+
+Equilibrium for the free DOFs is the nonlinear system
+
+$$
+\mathbf f_F(\mathbf x_F;\,\mathbf k)=\mathbf 0,
+\qquad
+\text{with}\quad
+\mathbf f_F(\cdot)=A_{0F}^\top\,\mathbf y(\mathbf x).
+$$
+
+The simulation output is the full deformed configuration
+
+$$\mathbf{x}_{\operatorname{sim}}^{\prime}=\left[\begin{array}{l}\mathbf{x}_F^* \\ \mathbf{x}_D\end{array}\right] \quad$$ with $\mathbf{x}_F^*$ solving $\mathbf{f}_F\left(\mathbf{x}_F^* ; \mathbf{k}\right)=\mathbf{0}$.
+
+\subsection{Simulation Verification}
+For a homogeneous, isotropic material, show that the SMS (per‑tetra) energy can be written in an axis‑free form and that, in the small‑strain limit, it matches the FEM linear elastic energy. Identify the parameter mapping.
+
+
+\textbf{Ground Truth from FEM (small‑strain linear elasticity)}
+
+With parameters: $E,\nu$. Lamé parameters are:$\mu=\frac{E}{2(1+\nu)},\quad \lambda=\frac{E\nu}{(1+\nu)(1-2\nu)}.$ So in FEM, the related strain  is $\varepsilon(u)=\tfrac12(\nabla u+\nabla u^\top)$, stress os $
+\sigma(u)=\lambda\,\mathrm{tr}(\varepsilon)I+2\mu\,\varepsilon .$ Energy density is: $W_{\text{FEM}}(\varepsilon)=\mu\,\varepsilon:\varepsilon+\frac{\lambda}{2}\big(\mathrm{tr}\,\varepsilon\big)^2, $ where (“$:$” is the Frobenius inner product: $A:B=\sum_{i=1}^3 \sum_{j=1}^3A_{ij}B_{ij} = tr(A^TB)$)
+
+Then in SMS, let $V_k$ be the tetra volume. Define reference/deformed edge matrices
+
+$$
+D_m=(X_1-X_2,\;X_1-X_3,\;X_1-X_4),\qquad
+D_s=(x_1-x_2,\;x_1-x_3,\;x_1-x_4),
+$$
+
+so the deformation gradient
+
+$$
+F_k=D_sD_m^{-1},\qquad J_k=\det F_k .
+$$
+
+Right Cauchy–Green: $C_k=F_k^\top F_k$.
+
+Choose any orthonormal basis $\{e_\ell\}_{\ell=1}^3$ local to the tetra.
+So the SMS energy (per tetra) is
+
+\begin{equation}
+    U_k
+=
+V_k\left[
+\frac{\alpha}{2}\sum_{\ell=1}^3\big(\|F_ke_\ell\|^2-1\big)^2
++\frac{\beta}{2}\sum_{\ell<m}\big((F_ke_\ell)\!\cdot\!(F_ke_m)\big)^2
++\frac{k}{2}(J_k-1)^2
+\right].
+\tag{1}
+\end{equation}
+
+
+
+
+Let $C=C_k$ and $c_{\ell m}=e_\ell^\top C\,e_m$.
+
+Lemma 1.
+
+$$
+\sum_{\ell=1}^3 \|F e_\ell\|^2=\mathrm{tr}(C),\qquad
+\sum_{\ell=1}^3 \|F e_\ell\|^4+2\sum_{\ell<m}\big((F e_\ell)\!\cdot\!(F e_m)\big)^2=\mathrm{tr}(C^2).
+$$
+
+Proof. $\|F e_\ell\|^2=e_\ell^\top C e_\ell=c_{\ell\ell}$, hence
+$\sum_\ell \|F e_\ell\|^2=\sum_\ell c_{\ell\ell}=\mathrm{tr}(C)$.
+Since $C$ is symmetric,
+$\mathrm{tr}(C^2)=\sum_{i,j} c_{ij}^2=\sum_\ell c_{\ell\ell}^2+2\sum_{\ell<m}c_{\ell m}^2$.
+But $c_{\ell\ell}^2=(\|F e_\ell\|^2)^2$ and $c_{\ell m}=(F e_\ell)\!\cdot\!(F e_m)$, giving the second identity. 
+
+Equivalently,\begin{equation}
+    \sum_{\ell<m}c_{\ell m}^2=\frac12\Big(\mathrm{tr}(C^2)-\sum_{\ell}c_{\ell\ell}^2\Big).
+\tag{2}
+\end{equation}
+
+
+
+\textbf{Theorem I — Axis‑free form }
+
+The energy density $U_k/V_k$ is independent of the chosen orthonormal basis $\{e_\ell\}$ if
+$\beta=2\alpha$
+
+\textit{Proof} From (1) and Lemma 1,
+
+$$
+\sum_{\ell=1}^3\big(\|F e_\ell\|^2-1\big)^2
+=\sum_\ell c_{\ell\ell}^2-2\,\mathrm{tr}(C)+3.
+$$
+
+Using (1),
+
+$$
+\frac{U_k}{V_k}
+=\frac{\alpha}{2}\sum_\ell c_{\ell\ell}^2 -\alpha\,\mathrm{tr}(C)+\frac{3\alpha}{2}
++\frac{\beta}{2}\sum_{\ell<m}c_{\ell m}^2+\frac{k}{2}(J-1)^2
+$$
+
+$$
+=\frac{\alpha}{2}\Big(\mathrm{tr}(C^2)-2\sum_{\ell<m}c_{\ell m}^2\Big)
+-\alpha\,\mathrm{tr}(C)+\frac{3\alpha}{2}
++\frac{\beta}{2}\sum_{\ell<m}c_{\ell m}^2+\frac{k}{2}(J-1)^2
+$$
+
+$$
+=\frac{\alpha}{2}\,\mathrm{tr}(C^2)
++\Big(\frac{\beta}{2}-\alpha\Big)\sum_{\ell<m}c_{\ell m}^2
+-\alpha\,\mathrm{tr}(C)
++\frac{k}{2}(J-1)^2+\frac{3\alpha}{2}.
+$$
+
+The only basis‑dependent quantity is $\sum_{\ell<m}c_{\ell m}^2$. Thus basis independence forces $\frac{\beta}{2}-\alpha=0$, i.e. $\beta=2\alpha$.
+
+With this choice,
+
+\begin{equation}
+    \boxed{\;
+\frac{U_k}{V_k}
+=\frac{\alpha}{2}\,\mathrm{tr}(C^2)-\alpha\,\mathrm{tr}(C)+\frac{k}{2}(J-1)^2
++\text{const.}
+\;}
+\tag{2}
+\end{equation}
+
+(The additive constant $3\alpha/2$ is immaterial for forces.) 
+
+
+
+
+
+\textbf{Theorem II — Correspondence to FEM in the small‑strain limit }
+
+Let $H=\nabla u$, $\varepsilon=\tfrac12(H+H^\top)$ and $\omega=\tfrac12(H-H^\top)$. Then
+
+$$
+C=(I+H)^\top(I+H)=I+2\varepsilon+H^\top H.
+$$
+
+Hence, up to second order,
+
+$$
+\mathrm{tr}(C)=3+2\,\mathrm{tr}(\varepsilon)+\mathrm{tr}(H^\top H),
+$$
+
+$$
+\mathrm{tr}(C^2)=\mathrm{tr}\big(I+2\varepsilon+H^\top H\big)^2
+=3+4\,\mathrm{tr}(\varepsilon)+4\,\mathrm{tr}(\varepsilon^2)+2\,\mathrm{tr}(H^\top H)+O(\|H\|^3).
+$$
+
+For the Jacobian,
+
+$$
+J=\det(I+H)=1+\mathrm{tr}(H)+\tfrac12\big((\mathrm{tr}H)^2-\mathrm{tr}(H^2)\big)+O(\|H\|^3),
+$$
+
+so $(J-1)^2=(\mathrm{tr}H)^2+O(\|H\|^3)=(\mathrm{tr}\,\varepsilon)^2+O(\|H\|^3)$
+(because $\mathrm{tr}(\omega)=0$).
+
+Insert these into (1):
+
+$$
+\frac{U_k}{V_k}
+=\frac{\alpha}{2}\big[3+4\,\mathrm{tr}(\varepsilon)+4\,\mathrm{tr}(\varepsilon^2)+2\,\mathrm{tr}(H^\top H)\big]
+-\alpha\big[3+2\,\mathrm{tr}(\varepsilon)+\mathrm{tr}(H^\top H)\big]
++\frac{k}{2}(\mathrm{tr}\,\varepsilon)^2+O(\|H\|^3)+\text{const.}
+$$
+
+Linear terms $2\alpha\,\mathrm{tr}(\varepsilon)-2\alpha\,\mathrm{tr}(\varepsilon)$ cancel, and the $\mathrm{tr}(H^\top H)$ terms $+\alpha\,\mathrm{tr}(H^\top H)-\alpha\,\mathrm{tr}(H^\top H)$ cancel as well. Discarding constants, we obtain
+
+\begin{equation}
+    \boxed{\;
+\frac{U_k}{V_k}
+= 2\alpha\,\varepsilon:\varepsilon + \frac{k}{2}\big(\mathrm{tr}\,\varepsilon\big)^2 + O(\|H\|^3).
+\;}
+\tag{3}
+\end{equation}
+
+Comparing (3) with 
+$W_{\text{FEM}}(\varepsilon)=\mu\,\varepsilon:\varepsilon+\frac{\lambda}{2}(\mathrm{tr}\,\varepsilon)^2$, we can have  $2\alpha=\mu,\quad k=\lambda. \;$. Finally, combining with Theorem I ($\beta=2\alpha$), the parameter mapping is
+
+$$
+\boxed{\;
+\alpha=\frac{\mu}{2}=\frac{E}{4(1+\nu)},\quad
+\beta=2\alpha=\mu=\frac{E}{2(1+\nu)},\quad
+k=\lambda=\frac{E\nu}{(1+\nu)(1-2\nu)}.
+\;}
+$$
+
+
+
+\section{Pipeline}
+\subsection{algorithmic summary}
+
+1. Build $A_0$ once; extract $A_{0F}$ by selecting free columns.
+
+2. Given current $\mathbf x$ (with $\mathbf x_D$ set), compute
+
+$$
+\Delta = A_0\,\mathbf x,\quad
+\mathbf n_s = \Delta_s/\|\Delta_s\|,\quad
+\mathrm{ext}_s = \mathbf n_s^\top\Delta_s - L_{0,s}.
+$$
+
+3. Assemble $K_{FF} = A_{0F}^\top\, \operatorname{blkdiag}(k_s\,\mathbf n_s\mathbf n_s^\top)\,A_{0F}$ and
+
+$$
+\mathbf r_F = A_{0F}^\top\,\operatorname{blkdiag}(k_s\mathbf n_s)\,\mathrm{ext}.
+$$
+
+4. Newton step for equilibrium:
+
+$$
+K_{FF}\,\Delta \mathbf x_F = -\,\mathbf r_F,\qquad
+\mathbf x_F \leftarrow \mathbf x_F + \Delta \mathbf x_F.
+$$
+
+
+
+1. With converged $\mathbf x_F^\star$, compute the loss $\mathcal L$ and its free-DOF gradient $\mathbf g_L = \partial\mathcal L/\partial \mathbf x_F$.
+
+2. Adjoint solve $K_{FF}\,\boldsymbol\lambda = \mathbf g_L$.
+
+3. Gradient in stiffness space:
+
+$$
+\frac{d\mathcal L}{d k_s} = -\,\mathrm{ext}_s\;\mathbf n_s^\top\,(A_{0F}\boldsymbol\lambda)_s
+\quad(\text{plus } \beta k_s \text{ if regularized}).
+$$
+
+8. If $\mathbf k=\mathrm{ANN}(\Phi;\theta)$, back-propagate:
+
+$$
+\frac{d\mathcal L}{d\theta}
+= \Big(\frac{\partial \mathbf k}{\partial \theta}\Big)^\top \frac{d\mathcal L}{d\mathbf k}.
+$$
+
+This yields exact gradients under the small-strain tangent (no need to unroll solver steps) and costs one linear solve for $\boldsymbol\lambda$ per loss, reusing the factorization of $K_{FF}$.
+\subsection{Loss for ANN}
+
+Let ground-truth deformed positions be $\mathbf x'_{\text{gt}}$. Define
+
+$$
+\mathcal L(\mathbf x_F^) \;=\; \tfrac12\big\|\, \!\big(\mathbf x'_{\text{sim}}-\mathbf x'_{\text{gt}}\big)\big\|^2.
+$$
+
+Only the free part depends on $\mathbf k$. Let $S_F$ be the column selector picking free DOFs from full length. Then
+
+$$
+\frac{\partial\mathcal L}{\partial \mathbf x_F}
+\;=\;
+S_F^\top \big(\mathbf x'_{\text{sim}}-\mathbf x'_{\text{gt}}\big)
+\;=\;
+:\ \mathbf g_L \in \mathbb R^{3N_F}.
+$$
+
+
+
+3. Implicit differentiation (adjoint)
+
+We need $\frac{d \mathcal{L}}{d \mathbf{k}}$. The free solution satisfies $\mathbf{f}_F\left(\mathbf{x}_F^ ; \mathbf{k}\right)=\mathbf{0}$. Differentiate:
+
+$$
+\underbrace{\frac{\partial \mathbf{f}_F}{\partial \mathbf{x}_F}}_{K_{F F}} \frac{d \mathbf{x}_F^*}{d \mathbf{k}}+\underbrace{\frac{\partial \mathbf{f}_F}{\partial \mathbf{k}}}_{f_k}=\mathbf{0} \Longrightarrow \frac{d \mathbf{x}_F^*}{d \mathbf{k}}=-K_{F F}^{-1} f_k .
+$$
+
+
+Chain rule gives
+
+$$
+\frac{d \mathcal{L}}{d \mathbf{k}}=\frac{\partial \mathcal{L}}{\partial \mathbf{x}_F} \frac{d \mathbf{x}_F^*}{d \mathbf{k}}=-\mathbf{g}_L^{\top} K_{F F}^{-1} f_k .
+$$
+
+
+Introduce the adjoint $\boldsymbol{\lambda} \in \mathbb{R}^{3 N_F}$ as the solution of
+
+$$
+K_{F F}^{\top} \boldsymbol{\lambda}=\mathbf{g}_L
+$$
+
+
+Because $K_{F F}$ is symmetric, $K_{F F}^{\top}=K_{F F}$. Then the gradient collapses to a cheap inner product:
+
+$$
+\frac{d \mathcal{L}}{d \mathrm{k}}=-f_k^{\top} \lambda
+$$
+
+
+So we solve one linear system in the same matrix already factorized for Newton, and then take a projected dot-product.
+
+
+
+4. The partial $f_k$ at fixed $\mathbf x$
+
+By definition $\mathbf f_F(\mathbf x)=A_{0F}^\top\,\mathbf y(\mathbf x,\mathbf k)$, with
+
+$$
+\mathbf y \;=\; \operatorname{blkdiag}(k_1\mathbf n_1,\dots,k_S\mathbf n_S)\ \mathrm{ext},
+\qquad
+\mathrm{ext}_s=\mathbf n_s^\top\Delta_s - L_{0,s}.
+$$
+
+When taking $\dfrac{\partial}{\partial \mathbf k}$ at fixed $\mathbf x$, the directions $\mathbf n_s$ and extensions $\mathrm{ext}_s$ are constants. Therefore
+
+$$
+\frac{\partial\mathbf y}{\partial k_s}
+\;=\;
+\begin{bmatrix}\mathbf 0\\ \vdots\\ \mathbf n_s\,\mathrm{ext}_s\\ \vdots\\ \mathbf 0\end{bmatrix}
+\in\mathbb R^{3S},
+\qquad
+\Rightarrow\qquad
+\boxed{\;
+f_k \;=\; \frac{\partial \mathbf f_F}{\partial \mathbf k}
+\;=\;
+A_{0F}^\top\ \operatorname{blkdiag}\!\big(\mathbf n_1\mathrm{ext}_1,\dots,\mathbf n_S\mathrm{ext}_S\big).
+\;}
+$$
+
+Plug into the adjoint gradient:
+
+$$
+\frac{d\mathcal L}{d\mathbf k}
+\;=\;
+-\Big[\operatorname{blkdiag}\!\big(\mathbf n_s\mathrm{ext}_s\big)\Big]^\top
+\left(A_{0F}\,\boldsymbol\lambda\right).
+$$
+
+Written per spring $s$:
+
+$$
+\boxed{\;
+\frac{d\mathcal L}{d k_s}
+\;=\;
+-\,\mathrm{ext}_s \;\mathbf n_s^\top\,\big(A_{0F}\,\boldsymbol\lambda\big)_s,
+\quad
+\text{with}\ \mathrm{ext}_s=\mathbf n_s^\top\Delta_s - L_{0,s},\ \Delta=A_0\,\mathbf x.
+\;}
+$$
+
+This is extremely efficient: compute $z=A_{0F}\boldsymbol\lambda\in\mathbb R^{3S}$, reshape in 3-blocks $z_s\in\mathbb R^3$, then $d\mathcal L/dk_s= -\,\mathrm{ext}_s\,(\mathbf n_s\cdot z_s)$.
+
+If you add a quadratic regularizer $\tfrac{\beta}{2}\|\mathbf k\|^2$, simply add $+\beta\,\mathbf k$ to the gradient.
+
+
+
+5. From constant $\mathbf k$ to ANN parameters $\theta$
+
+If you first treat $\mathbf k$ as directly learnable constants, then $\theta\equiv\mathbf k$ and the formula above already gives $\dfrac{d\mathcal L}{d\theta}$.
+
+If instead $\mathbf k = \mathrm{ANN}(\Phi;\theta)$ (e.g. per-spring features $\Phi$ from $\mathbf X$, labels, region, etc.), apply the chain rule:
+
+$$
+\boxed{\;
+\frac{d\mathcal L}{d\theta}
+\;=\;
+\Big(\frac{\partial \mathbf k}{\partial \theta}\Big)^\top
+\frac{d\mathcal L}{d\mathbf k}.
+\;}
+$$
+
+In practice you feed $\Phi$ through your network to produce $\mathbf k$, take $\dfrac{d\mathcal L}{d\mathbf k}$ from the adjoint above, and let your DL framework back-propagate $\left(\partial \mathbf k/\partial\theta\right)^\top$ automatically.
+
+\bibliographystyle{plain} % We choose the "plain" reference style
+\bibliography{./refs} 
+\end{document}

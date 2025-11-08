@@ -1,0 +1,15 @@
+## **P1 — A Simple Spring–Mass Analogy (2D cloth)**
+
+* **Mass points & springs.** Cloth meshes (2D) are often modeled with masses at vertices and linear springs on edges.
+  **Stretch** springs penalize edge length changes; **shear** springs penalize angle change between warp/weft; (optional) **bending** springs penalize dihedral changes along folds.
+
+* **Energy**
+
+  $$
+  U_{\text{cloth}}=\tfrac12\!\sum_{(i,j)\in E}k_s\big(\|X_i-X_j\|-\|x_i-x_j\|\big)^2
+  \;
+  $$
+
+  Differentiation gives **internal forces** that are linear in displacements around the rest state.
+
+Our 3D **SMS (for tetrahedra)** follows the same idea: we define simple “measurements” of deformation along a few directions and build a **quadratic energy**, whose gradient gives internal forces and whose Hessian gives a **global stiffness**. The next pages lift this intuition to 3D tets with anisotropy.

@@ -1,0 +1,163 @@
+Internal error occurred. Check out this page for possible solutions:
+https://docs.taichi-lang.org/docs/install
+Taichi sparse solver error: [sparse_solver.cpp:factorize_cholesky@372] Assertion failure: singularity == -1
+Linear solver failed
+=======================================================================================================
+Kernel Profiler(trace, default) @ CUDA on NVIDIA GeForce RTX 5080
+=======================================================================================================
+[  start.time | kernel.time |   regs  |   shared mem | grid size | block size | occupancy ] Kernel name
+-------------------------------------------------------------------------------------------------------
+[    0.000 ms |    5.946 ms |      28 |      0 bytes |         1 |          1 | 24 blocks ] runtime_initialize
+[    5.946 ms |    0.196 ms |      14 |      0 bytes |      4032 |       1024 |  1 blocks ] runtime_initialize_rand_states_cuda
+[    6.142 ms |    0.013 ms |      28 |      0 bytes |         1 |          1 | 24 blocks ] runtime_initialize_runtime_context_buffer
+[    6.155 ms |    0.012 ms |      24 |      0 bytes |         1 |          1 | 24 blocks ] runtime_memory_allocate_aligned
+[    6.167 ms |    0.006 ms |      36 |      0 bytes |         1 |          1 | 24 blocks ] runtime_initialize_snodes
+[    6.173 ms |    0.009 ms |      24 |      0 bytes |         1 |          1 | 24 blocks ] runtime_memory_allocate_aligned
+[    6.183 ms |    0.485 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] ext_arr_to_matrix_c30_0_kernel_0_range_for
+[    6.667 ms |    0.054 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[    6.721 ms |    0.071 ms |      24 |      0 bytes |         1 |          1 | 24 blocks ] runtime_memory_allocate_aligned
+[    6.792 ms |    2.417 ms |      56 |      0 bytes |      1154 |        128 |  9 blocks ] ext_arr_to_matrix_c30_1_kernel_0_range_for
+[    9.209 ms |    0.047 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[    9.255 ms |    0.871 ms |      40 |      0 bytes |      1154 |        128 | 12 blocks ] ext_arr_to_tensor_c20_0_kernel_0_range_for
+[   10.127 ms |    0.049 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   10.176 ms |    0.219 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] ext_arr_to_tensor_c20_1_kernel_0_range_for
+[   10.395 ms |    0.050 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   10.445 ms |    0.073 ms |      24 |      0 bytes |         1 |          1 | 24 blocks ] runtime_memory_allocate_aligned
+[   10.518 ms |    3.886 ms |      52 |      0 bytes |      4032 |        128 |  9 blocks ] ext_arr_to_matrix_c30_2_kernel_0_range_for
+[   14.404 ms |    0.043 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   14.447 ms |    1.774 ms |      38 |      0 bytes |      4032 |        128 | 12 blocks ] ext_arr_to_tensor_c20_2_kernel_0_range_for
+[   16.221 ms |    0.051 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   16.271 ms |    0.074 ms |      24 |      0 bytes |         1 |          1 | 24 blocks ] runtime_memory_allocate_aligned
+[   16.346 ms |    4.750 ms |      54 |      0 bytes |      4032 |        128 |  9 blocks ] ext_arr_to_tensor_c20_3_kernel_0_range_for
+[   21.096 ms |    0.052 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   21.148 ms |    1.183 ms |      38 |      0 bytes |      3462 |        128 | 12 blocks ] ext_arr_to_tensor_c20_4_kernel_0_range_for
+[   22.331 ms |    0.047 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   22.378 ms |    1.060 ms |      40 |      0 bytes |      1154 |        128 | 12 blocks ] ext_arr_to_tensor_c20_5_kernel_0_range_for
+[   23.438 ms |    0.040 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   23.478 ms |    0.998 ms |      38 |      0 bytes |      3462 |        128 | 12 blocks ] ext_arr_to_tensor_c20_6_kernel_0_range_for
+[   24.477 ms |    0.033 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   24.509 ms |    3.860 ms |      38 |      0 bytes |      3462 |        128 | 12 blocks ] ext_arr_to_tensor_c20_7_kernel_0_range_for
+[   28.369 ms |    0.104 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   28.473 ms |    0.887 ms |      38 |      0 bytes |      3462 |        128 | 12 blocks ] ext_arr_to_tensor_c20_8_kernel_0_range_for
+[   29.360 ms |    0.047 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   29.407 ms |    0.221 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] ext_arr_to_tensor_c20_9_kernel_0_range_for
+[   29.628 ms |    0.050 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   29.678 ms |    0.745 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] ext_arr_to_matrix_c30_3_kernel_0_range_for
+[   30.423 ms |    0.043 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   30.466 ms |    0.694 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] ext_arr_to_matrix_c30_4_kernel_0_range_for
+[   31.160 ms |    0.046 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   31.206 ms |    1.331 ms |      56 |      0 bytes |       207 |        128 |  9 blocks ] _initialize_solver_fields_c76_0_kernel_0_range_for
+[   32.537 ms |    0.575 ms |      40 |      0 bytes |       619 |        128 | 12 blocks ] _initialize_solver_fields_c76_0_kernel_1_range_for
+[   33.112 ms |    0.007 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   33.119 ms |   65.706 ms |      78 |      0 bytes |       207 |        128 |  6 blocks ] _apply_boundary_displacements_c78_0_kernel_0_range_for
+[   98.825 ms |    0.013 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   98.837 ms |    0.226 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] tensor_to_ext_arr_c6_0_kernel_0_range_for
+[   99.063 ms |    0.043 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   99.106 ms |    0.221 ms |      42 |      0 bytes |       207 |        128 | 10 blocks ] tensor_to_ext_arr_c6_1_kernel_0_range_for
+[   99.327 ms |    0.044 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[   99.371 ms |    9.036 ms |      38 |      0 bytes |      4032 |        128 | 12 blocks ] tensor_to_ext_arr_c6_2_kernel_0_range_for
+[  108.407 ms |    0.041 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  108.448 ms |    1.135 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_3_kernel_0_range_for
+[  109.583 ms |    0.044 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  109.626 ms |    0.818 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_3_kernel_0_range_for
+[  110.444 ms |    0.039 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  110.483 ms |    1.050 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_4_kernel_0_range_for
+[  111.533 ms |    0.041 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  111.573 ms |    0.889 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_4_kernel_0_range_for
+[  112.462 ms |    0.050 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  112.512 ms |    1.173 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_5_kernel_0_range_for
+[  113.685 ms |    0.046 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  113.731 ms |    0.820 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_5_kernel_0_range_for
+[  114.551 ms |    0.044 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  114.595 ms |    0.676 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] matrix_to_ext_arr_c28_0_kernel_0_range_for
+[  115.271 ms |    0.056 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  115.327 ms |    0.488 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] _compute_residual_c74_0_kernel_0_range_for
+[  115.815 ms |    0.654 ms |      48 |      0 bytes |       207 |        128 | 10 blocks ] _compute_residual_c74_0_kernel_1_range_for
+[  116.469 ms |  186.215 ms |     160 |      0 bytes |      1154 |        128 |  3 blocks ] _compute_residual_c74_0_kernel_2_range_for
+[  302.684 ms |    0.011 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  302.695 ms |    0.718 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] matrix_to_ext_arr_c28_1_kernel_0_range_for
+[  303.413 ms |    0.050 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  303.463 ms |    0.168 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] tensor_to_ext_arr_c6_0_kernel_0_range_for
+[  303.631 ms |    0.040 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[  303.671 ms |    0.057 ms |      24 |      0 bytes |         1 |          1 | 24 blocks ] runtime_memory_allocate_aligned
+[  303.728 ms | 1967.965 ms |     110 |      0 bytes |      1154 |        128 |  4 blocks ] _build_sparse_matrix_c80_0_kernel_0_range_for
+[ 2271.693 ms |    0.230 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] _build_sparse_matrix_c80_0_kernel_1_range_for
+[ 2271.924 ms |    0.007 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2271.931 ms |   33.679 ms |      70 |      0 bytes |       207 |        128 |  7 blocks ] _flatten_residual_to_vector_c82_0_kernel_0_range_for
+[ 2305.610 ms |    0.007 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2305.617 ms |    0.748 ms |      40 |      0 bytes |       619 |        128 | 12 blocks ] fill_tensor_c0_0_kernel_0_range_for
+[ 2306.365 ms |    0.007 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2306.372 ms |    0.034 ms |      24 |      0 bytes |         1 |          1 | 24 blocks ] runtime_memory_allocate_aligned
+[ 2306.405 ms |    0.007 ms |      36 |      0 bytes |         1 |          1 | 24 blocks ] runtime_initialize_snodes
+[ 2306.412 ms |    0.766 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] ext_arr_to_matrix_c30_5_kernel_0_range_for
+[ 2307.178 ms |    0.031 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2307.209 ms |    4.937 ms |      56 |      0 bytes |      1154 |        128 |  9 blocks ] ext_arr_to_matrix_c30_6_kernel_0_range_for
+[ 2312.146 ms |    0.058 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2312.204 ms |    1.507 ms |      40 |      0 bytes |      1154 |        128 | 12 blocks ] ext_arr_to_tensor_c20_10_kernel_0_range_for
+[ 2313.710 ms |    0.051 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2313.761 ms |    0.329 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] ext_arr_to_tensor_c20_11_kernel_0_range_for
+[ 2314.091 ms |    0.062 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2314.152 ms |   23.836 ms |      52 |      0 bytes |      4032 |        128 |  9 blocks ] ext_arr_to_matrix_c30_7_kernel_0_range_for
+[ 2337.989 ms |    0.051 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2338.040 ms |    7.960 ms |      38 |      0 bytes |      4032 |        128 | 12 blocks ] ext_arr_to_tensor_c20_12_kernel_0_range_for
+[ 2346.000 ms |    0.049 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2346.049 ms |   33.824 ms |      54 |      0 bytes |      4032 |        128 |  9 blocks ] ext_arr_to_tensor_c20_13_kernel_0_range_for
+[ 2379.873 ms |    0.040 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2379.914 ms |    3.911 ms |      38 |      0 bytes |      3462 |        128 | 12 blocks ] ext_arr_to_tensor_c20_14_kernel_0_range_for
+[ 2383.825 ms |    0.050 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2383.875 ms |    1.598 ms |      40 |      0 bytes |      1154 |        128 | 12 blocks ] ext_arr_to_tensor_c20_15_kernel_0_range_for
+[ 2385.472 ms |    0.052 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2385.525 ms |    3.973 ms |      38 |      0 bytes |      3462 |        128 | 12 blocks ] ext_arr_to_tensor_c20_16_kernel_0_range_for
+[ 2389.498 ms |    0.048 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2389.546 ms |    4.065 ms |      38 |      0 bytes |      3462 |        128 | 12 blocks ] ext_arr_to_tensor_c20_17_kernel_0_range_for
+[ 2393.612 ms |    0.059 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2393.671 ms |    4.154 ms |      38 |      0 bytes |      3462 |        128 | 12 blocks ] ext_arr_to_tensor_c20_18_kernel_0_range_for
+[ 2397.824 ms |    0.050 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2397.874 ms |    0.350 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] ext_arr_to_tensor_c20_19_kernel_0_range_for
+[ 2398.224 ms |    0.038 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2398.262 ms |    0.856 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] ext_arr_to_matrix_c30_8_kernel_0_range_for
+[ 2399.119 ms |    0.050 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2399.169 ms |    0.965 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] ext_arr_to_matrix_c30_9_kernel_0_range_for
+[ 2400.134 ms |    0.055 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2400.189 ms |    1.701 ms |      56 |      0 bytes |       207 |        128 |  9 blocks ] _initialize_solver_fields_c76_1_kernel_0_range_for
+[ 2401.890 ms |    0.829 ms |      40 |      0 bytes |       619 |        128 | 12 blocks ] _initialize_solver_fields_c76_1_kernel_1_range_for
+[ 2402.720 ms |    0.009 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2402.729 ms |   86.295 ms |      78 |      0 bytes |       207 |        128 |  6 blocks ] _apply_boundary_displacements_c78_1_kernel_0_range_for
+[ 2489.024 ms |    0.024 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2489.047 ms |    0.352 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] tensor_to_ext_arr_c6_6_kernel_0_range_for
+[ 2489.399 ms |    0.057 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2489.456 ms |    0.350 ms |      42 |      0 bytes |       207 |        128 | 10 blocks ] tensor_to_ext_arr_c6_7_kernel_0_range_for
+[ 2489.807 ms |    0.069 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2489.876 ms |    7.958 ms |      38 |      0 bytes |      4032 |        128 | 12 blocks ] tensor_to_ext_arr_c6_8_kernel_0_range_for
+[ 2497.833 ms |    0.056 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2497.889 ms |    3.945 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_9_kernel_0_range_for
+[ 2501.834 ms |    0.048 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2501.882 ms |    3.807 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_9_kernel_0_range_for
+[ 2505.688 ms |    0.047 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2505.736 ms |    4.029 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_10_kernel_0_range_for
+[ 2509.765 ms |    0.051 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2509.815 ms |    3.759 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_10_kernel_0_range_for
+[ 2513.574 ms |    0.043 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2513.617 ms |    3.985 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_11_kernel_0_range_for
+[ 2517.602 ms |    0.063 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2517.665 ms |    3.752 ms |      40 |      0 bytes |      3462 |        128 | 12 blocks ] tensor_to_ext_arr_c6_11_kernel_0_range_for
+[ 2521.416 ms |    0.048 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2521.465 ms |    0.946 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] matrix_to_ext_arr_c28_2_kernel_0_range_for
+[ 2522.411 ms |    0.046 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 2522.457 ms |    0.693 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] _compute_residual_c74_1_kernel_0_range_for
+[ 2523.150 ms |    0.728 ms |      48 |      0 bytes |       207 |        128 | 10 blocks ] _compute_residual_c74_1_kernel_1_range_for
+[ 2523.878 ms |  530.632 ms |     160 |      0 bytes |      1154 |        128 |  3 blocks ] _compute_residual_c74_1_kernel_2_range_for
+[ 3054.510 ms |    0.019 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 3054.529 ms |    0.780 ms |      54 |      0 bytes |       207 |        128 |  9 blocks ] matrix_to_ext_arr_c28_3_kernel_0_range_for
+[ 3055.309 ms |    0.051 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 3055.360 ms |    0.235 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] tensor_to_ext_arr_c6_6_kernel_0_range_for
+[ 3055.595 ms |    0.046 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[ 3055.641 ms | 7107.694 ms |     110 |      0 bytes |      1154 |        128 |  4 blocks ] _build_sparse_matrix_c80_1_kernel_0_range_for
+[10163.335 ms |    0.322 ms |      40 |      0 bytes |       207 |        128 | 12 blocks ] _build_sparse_matrix_c80_1_kernel_1_range_for
+[10163.658 ms |    0.010 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[10163.668 ms |   38.537 ms |      70 |      0 bytes |       207 |        128 |  7 blocks ] _flatten_residual_to_vector_c82_1_kernel_0_range_for
+[10202.205 ms |    0.015 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+[10202.220 ms |    0.688 ms |      40 |      0 bytes |       619 |        128 | 12 blocks ] fill_tensor_c0_1_kernel_0_range_for
+[10202.907 ms |    0.015 ms |      10 |      0 bytes |         1 |          1 | 24 blocks ] runtime_retrieve_and_reset_error_code
+-------------------------------------------------------------------------------------------------------
+Number of records:  152

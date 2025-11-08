@@ -1,0 +1,20 @@
+Initial mu: 0.000000e+00 (alpha_bg = exp(0) = 1.0)
+Initial delta: 0.000000e+00 (alpha_sp/alpha_bg = exp(0) = 1.0)
+Broadcast verification passed: bg=1.0000e+00, sp=1.0000e+00
+Saved parameter heatmap to /home/haozhe/Lung_Mesh_Segment/hetero_verification/results/2region_constant_inv_reg_LBFGS_0.05/scale_contrast_zero_init/initial_params.xdmf
+  First iter gradients: grad_alpha_bg=-5.4268e+04, grad_alpha_sp=-6.1607e+03, ratio=8.8088
+  Loss breakdown: total=1.4506e+05, data=1.4506e+05, reg=9.3896e-02
+  Gradients are distinct, label splitting is working correctly.
+Iter 001: loss=1.450598e+05 (data=1.450597e+05, reg=9.389603e-02), alpha_bg=4.7059e+00 (err=9.974e-01), alpha_sp=5.7590e+00 (err=9.984e-01), lr=5.00e-02, sigma_delta=1.50e-01, fw_conv=True, bw_conv=True
+Iter 002: loss=6.175692e+03 (data=6.175673e+03, reg=1.942774e-02), alpha_bg=2.2073e+01 (err=9.876e-01), alpha_sp=3.2616e+01 (err=9.909e-01), lr=5.00e-02, sigma_delta=0.00e+00, fw_conv=True, bw_conv=True
+Iter 003: loss=2.518001e+02 (data=2.517960e+02, reg=4.088660e-03), alpha_bg=1.0201e+02 (err=9.429e-01), alpha_sp=1.8101e+02 (err=9.493e-01), lr=5.00e-02, sigma_delta=0.00e+00, fw_conv=True, bw_conv=True
+Iter 004: loss=8.322302e+00 (data=8.321373e+00, reg=9.295961e-04), alpha_bg=4.3792e+02 (err=7.548e-01), alpha_sp=9.1938e+02 (err=7.426e-01), lr=5.00e-02, sigma_delta=0.00e+00, fw_conv=True, bw_conv=True
+Iter 005: loss=1.814643e-01 (data=1.811468e-01, reg=3.174973e-04), alpha_bg=1.2631e+03 (err=2.927e-01), alpha_sp=2.9564e+03 (err=1.722e-01), lr=5.00e-02, sigma_delta=0.00e+00, fw_conv=True, bw_conv=True
+Iter 006: loss=6.079298e-02 (data=6.056244e-02, reg=2.305459e-04), alpha_bg=1.7608e+03 (err=1.395e-02), alpha_sp=3.7718e+03 (err=5.611e-02), lr=5.00e-02, sigma_delta=0.00e+00, fw_conv=True, bw_conv=True
+Iter 007: loss=6.079298e-02 (data=6.056244e-02, reg=2.305459e-04), alpha_bg=1.7608e+03 (err=1.395e-02), alpha_sp=3.7718e+03 (err=5.611e-02), lr=5.00e-02, sigma_delta=0.00e+00, fw_conv=True, bw_conv=True
+Iter 008: loss=6.079298e-02 (data=6.056244e-02, reg=2.305459e-04), alpha_bg=1.7608e+03 (err=1.395e-02), alpha_sp=3.7718e+03 (err=5.611e-02), lr=5.00e-02, sigma_delta=0.00e+00, fw_conv=True, bw_conv=True
+Loss unchanged for two consecutive iterations; stopping early.
+Saved parameter heatmap to /home/haozhe/Lung_Mesh_Segment/hetero_verification/results/2region_constant_inv_reg_LBFGS_0.05/scale_contrast_zero_init/final_params.xdmf
+Optimization complete.
+Final alpha_bg: 1.760804e+03 (GT: 1.785714e+03)
+Final alpha_sp: 3.771834e+03 (GT: 3.571429e+03)

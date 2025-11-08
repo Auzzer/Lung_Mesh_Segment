@@ -1,0 +1,203 @@
+
+=== TI-PROFILE START: precompute Lx' and bias ===
+[host] precompute Lx' and bias wall: 40.836 ms
+=======================================================================================================
+Kernel Profiler(trace, default) @ CUDA on NVIDIA GeForce RTX 5080
+=======================================================================================================
+[  start.time | kernel.time |   regs  |   shared mem | grid size | block size | occupancy ] Kernel name
+-------------------------------------------------------------------------------------------------------
+[    0.000 ms |    0.051 ms |      12 |      0 bytes |        74 |        128 | 12 blocks ] _precompute_Lxprime_and_bias_c74_0_kernel_0_range_for
+[    0.051 ms |    0.017 ms |      32 |      0 bytes |       475 |        128 | 12 blocks ] _precompute_Lxprime_and_bias_c74_0_kernel_1_range_for
+[    0.068 ms |    0.008 ms |      24 |      0 bytes |        74 |        128 | 12 blocks ] _precompute_Lxprime_and_bias_c74_0_kernel_2_range_for
+-------------------------------------------------------------------------------------------------------
+Number of records:  3
+=======================================================================================================
+=== TI-PROFILE END: precompute Lx' and bias ===
+
+=== TI-PROFILE START: build free/fixed maps (host) ===
+[host] build free/fixed maps (host) wall: 2345.992 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+[ 45.58%   0.140 s  18468x |    0.002     0.008     0.941 ms] snode_writer_47_kernel_0_serial
+[ 33.61%   0.103 s   9471x |    0.002     0.011     0.435 ms] snode_reader_18_kernel_0_serial
+[ 20.82%   0.064 s   9945x |    0.002     0.006     0.258 ms] snode_writer_49_kernel_0_serial
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.308 s   number of results: 3
+=========================================================================
+=== TI-PROFILE END: build free/fixed maps (host) ===
+
+=== TI-PROFILE START: assemble + factorize K_FF ===
+[host] analyze_pattern: 2608.686 ms, factorize: 83.441 ms
+[host] assemble + factorize K_FF wall: 3579.589 ms
+=======================================================================================================
+Kernel Profiler(trace, default) @ CUDA on NVIDIA GeForce RTX 5080
+=======================================================================================================
+[  start.time | kernel.time |   regs  |   shared mem | grid size | block size | occupancy ] Kernel name
+-------------------------------------------------------------------------------------------------------
+[    0.000 ms |    0.006 ms |      24 |      0 bytes |         1 |          1 | 24 blocks ] runtime_memory_allocate_aligned
+[    0.006 ms |    0.044 ms |      32 |      0 bytes |       475 |        128 | 12 blocks ] _fill_KFF_builder_c76_0_kernel_0_range_for
+[    0.051 ms |    0.005 ms |      14 |      0 bytes |        71 |        128 | 12 blocks ] _fill_KFF_builder_c76_0_kernel_1_range_for
+-------------------------------------------------------------------------------------------------------
+Number of records:  3
+=======================================================================================================
+=== TI-PROFILE END: assemble + factorize K_FF ===
+
+=== TI-PROFILE START: precompute K_FD s_D correction ===
+[host] precompute K_FD s_D correction wall: 71.138 ms
+=======================================================================================================
+Kernel Profiler(trace, default) @ CUDA on NVIDIA GeForce RTX 5080
+=======================================================================================================
+[  start.time | kernel.time |   regs  |   shared mem | grid size | block size | occupancy ] Kernel name
+-------------------------------------------------------------------------------------------------------
+[    0.000 ms |    0.090 ms |      12 |      0 bytes |        74 |        128 | 12 blocks ] _precompute_KFD_sD_correction_c78_0_kernel_0_range_for
+[    0.090 ms |    0.076 ms |      32 |      0 bytes |       475 |        128 | 12 blocks ] _precompute_KFD_sD_correction_c78_0_kernel_1_range_for
+-------------------------------------------------------------------------------------------------------
+Number of records:  2
+=======================================================================================================
+=== TI-PROFILE END: precompute K_FD s_D correction ===
+
+=== TI-PROFILE START: init positions ===
+[host] init positions wall: 15.716 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+[100.00%   0.000 s      1x |    0.076     0.076     0.076 ms] _update_positions_c80_0_kernel_0_range_for
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 1
+=========================================================================
+=== TI-PROFILE END: init positions ===
+
+=== TI-PROFILE START: init d from rest ===
+[host] init d from rest wall: 20.151 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+[100.00%   0.000 s      1x |    0.093     0.093     0.093 ms] _init_d_from_rest_c82_0_kernel_0_range_for
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 1
+=========================================================================
+=== TI-PROFILE END: init d from rest ===
+
+=== TI-PROFILE START: iter 00 — assemble RHS ===
+[host] iter 00 — assemble RHS wall: 54.042 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+[ 28.72%   0.000 s      1x |    0.040     0.040     0.040 ms] _compress_rhs_free_c88_0_kernel_0_range_for
+[ 26.38%   0.000 s      1x |    0.037     0.037     0.037 ms] _assemble_rhs_full_c86_0_kernel_1_range_for
+[ 25.49%   0.000 s      1x |    0.036     0.036     0.036 ms] _assemble_rhs_full_c86_0_kernel_0_range_for
+[ 19.40%   0.000 s      1x |    0.027     0.027     0.027 ms] _assemble_rhs_full_c86_0_kernel_2_range_for
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 4
+=========================================================================
+=== TI-PROFILE END: iter 00 — assemble RHS ===
+
+=== TI-PROFILE START: iter 00 — linear solve (LDLT) ===
+[host] iter 00 — linear solve (LDLT) wall: 7.861 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 0
+=========================================================================
+=== TI-PROFILE END: iter 00 — linear solve (LDLT) ===
+iter 00: ||Δx|| = 4.788e+01
+
+=== TI-PROFILE START: iter 01 — assemble RHS ===
+[host] iter 01 — assemble RHS wall: 0.372 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+[ 31.28%   0.000 s      1x |    0.039     0.039     0.039 ms] _assemble_rhs_full_c86_0_kernel_1_range_for
+[ 25.46%   0.000 s      1x |    0.032     0.032     0.032 ms] _assemble_rhs_full_c86_0_kernel_2_range_for
+[ 23.60%   0.000 s      1x |    0.030     0.030     0.030 ms] _assemble_rhs_full_c86_0_kernel_0_range_for
+[ 19.66%   0.000 s      1x |    0.025     0.025     0.025 ms] _compress_rhs_free_c88_0_kernel_0_range_for
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 4
+=========================================================================
+=== TI-PROFILE END: iter 01 — assemble RHS ===
+
+=== TI-PROFILE START: iter 01 — linear solve (LDLT) ===
+[host] iter 01 — linear solve (LDLT) wall: 9.801 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 0
+=========================================================================
+=== TI-PROFILE END: iter 01 — linear solve (LDLT) ===
+iter 01: ||Δx|| = 1.823e+00
+
+=== TI-PROFILE START: iter 02 — assemble RHS ===
+[host] iter 02 — assemble RHS wall: 0.344 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+[ 28.95%   0.000 s      1x |    0.040     0.040     0.040 ms] _assemble_rhs_full_c86_0_kernel_1_range_for
+[ 25.05%   0.000 s      1x |    0.035     0.035     0.035 ms] _assemble_rhs_full_c86_0_kernel_0_range_for
+[ 23.65%   0.000 s      1x |    0.033     0.033     0.033 ms] _assemble_rhs_full_c86_0_kernel_2_range_for
+[ 22.35%   0.000 s      1x |    0.031     0.031     0.031 ms] _compress_rhs_free_c88_0_kernel_0_range_for
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 4
+=========================================================================
+=== TI-PROFILE END: iter 02 — assemble RHS ===
+
+=== TI-PROFILE START: iter 02 — linear solve (LDLT) ===
+[host] iter 02 — linear solve (LDLT) wall: 11.928 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 0
+=========================================================================
+=== TI-PROFILE END: iter 02 — linear solve (LDLT) ===
+iter 02: ||Δx|| = 1.184e+00
+
+=== TI-PROFILE START: iter 03 — assemble RHS ===
+[host] iter 03 — assemble RHS wall: 0.303 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+[ 31.61%   0.000 s      1x |    0.039     0.039     0.039 ms] _assemble_rhs_full_c86_0_kernel_1_range_for
+[ 26.04%   0.000 s      1x |    0.032     0.032     0.032 ms] _assemble_rhs_full_c86_0_kernel_2_range_for
+[ 21.69%   0.000 s      1x |    0.027     0.027     0.027 ms] _compress_rhs_free_c88_0_kernel_0_range_for
+[ 20.65%   0.000 s      1x |    0.026     0.026     0.026 ms] _assemble_rhs_full_c86_0_kernel_0_range_for
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 4
+=========================================================================
+=== TI-PROFILE END: iter 03 — assemble RHS ===
+
+=== TI-PROFILE START: iter 03 — linear solve (LDLT) ===
+[host] iter 03 — linear solve (LDLT) wall: 7.914 ms
+=========================================================================
+Kernel Profiler(count, default) @ CUDA on NVIDIA GeForce RTX 5080
+=========================================================================
+[      %     total   count |      min       avg       max   ] Kernel name
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+[100.00%] Total execution time:   0.000 s   number of results: 0
+=========================================================================
+=== TI-PROFILE END: iter 03 — linear solve (LDLT) ===
+iter 03: ||Δx|| = 8.162e-01
+

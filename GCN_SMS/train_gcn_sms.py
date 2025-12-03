@@ -1,10 +1,14 @@
 """
 Training skeleton: Pack_Mesh_HU -> TetGCN -> SMSLayer over all cases/timestamps.
 Matches doc/gcn.md: HU->log-alpha linear baseline + residual GCN, one update per case.
+python GCN_SMS/train_gcn_sms.py --omega-u 0.5 --omega-alpha 0.5 --num-epochs 50 | tee train.log
+
+
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
@@ -21,20 +25,46 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from GCN_SMS.GCN_nn import TetGCN, build_neighbor_tensors
-from GCN_SMS.sms_torch_layer import ConeStaticEquilibrium, SMSLayer, reset_taichi
+from GCN_SMS.sms_torch_layer import (
+    ConeStaticEquilibrium,
+    SMSLayer,
+    reset_taichi,
+    ALPHA_MIN,
+    ALPHA_MAX,
+)
 from GCN_SMS.utils.Pack_Mesh_HU import pack_mesh_hu_sequence
 from GCN_SMS.utils.sms_precompute_utils import run_sms_preprocessor
 import re
+
+
+class _Tee:
+    """Simple tee for stdout/stderr to also write to a file."""
+
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+        return len(data)
+
+    def flush(self):
+        for s in self.streams:
+            s.flush()
 
 # -----------------------------
 # Config
 # -----------------------------
 CASE_IDS: Sequence[str] = [f"Case{i}Pack" for i in range(1, 11)]
-HU_ROOT = REPO_ROOT / "data_processed_deformation"
+HU_ROOT = REPO_ROOT / "data_processed_deformation" / "hu_packs"
 SMS_ROOT = REPO_ROOT / "data_processed_deformation"
 CT_ROOT = REPO_ROOT / "data" / "Emory-4DCT"
 HU_SUFFIX = "_T00_forward_hu.npz"
-# Adjust to match your naming; pattern used below.
+# Where to save model checkpoints
+CHECKPOINT_DIR = REPO_ROOT / "checkpoints"
+# Where to save per-epoch mesh predictions
+MESH_SAVE_DIR = CHECKPOINT_DIR / "mesh_results"
+# Adjust to match the naming; pattern used below.
 SMS_PATTERN = "{case_id}_{fixed}_to_{moving}_lung_regions_11.npz"
 TIMESTEP_PAIRS: Sequence[Tuple[str, str]] = [
     ("T00", "T10"),
@@ -272,6 +302,12 @@ class CaseData:
         hu_mean = np.asarray(data["hu_tetra_mean"])[:, 0].astype(np.float32)  # (M,)
         tet_neighbor_indices = data["tet_neighbor_indices"].astype(np.int64)
         tet_neighbor_offsets = data["tet_neighbor_offsets"].astype(np.int64)
+        if "alpha_init_from_hu" not in data or "log_alpha_init_from_hu" not in data:
+            raise ValueError(f"Missing alpha_init_from_hu in {hu_npz_path}")
+        alpha0_np = np.asarray(data["alpha_init_from_hu"]).astype(np.float64)
+        log_alpha0_np = np.asarray(data["log_alpha_init_from_hu"]).astype(np.float64)
+        self.mesh_points = np.asarray(data["mesh_points"]).astype(np.float32)
+        self.tetrahedra = np.asarray(data["tetrahedra"]).astype(np.int64)
 
         self.hu = torch.from_numpy(hu_mean).to(device=DEVICE)
         self.neigh_idx, self.neigh_off = build_neighbor_tensors(
@@ -279,6 +315,8 @@ class CaseData:
             torch.from_numpy(tet_neighbor_offsets),
             device=DEVICE,
         )
+        self.alpha0 = torch.from_numpy(alpha0_np).to(device=DEVICE, dtype=torch.float64)
+        self.log_alpha0 = torch.from_numpy(log_alpha0_np).to(device=DEVICE, dtype=torch.float64)
         # Discover adjacent CorrField steps (sequential times) and store SMS NPZ paths.
         steps = _discover_adjacent_steps(case_id)
         self.timestep_pairs = [(src, tgt) for src, tgt, _ in steps]
@@ -290,23 +328,60 @@ class CaseData:
 # -----------------------------
 # 3) Model/optimizer helpers
 # -----------------------------
-def build_model_and_optimizer(hu_min: float, hu_max: float, hidden_dim: int = 16, lr: float = 1e-3) -> Tuple[TetGCN, optim.Optimizer]:
-    model = TetGCN(hidden_dim=hidden_dim).to(device=DEVICE)
-    model.init_linear_from_hu_range(hu_min, hu_max)
+def build_model_and_optimizer(
+    hidden_dim: int = 16,
+    lr: float = 1e-3,
+    max_delta_log: float = 0.3,
+) -> Tuple[TetGCN, optim.Optimizer]:
+    model = TetGCN(hidden_dim=hidden_dim, max_delta_log=max_delta_log).to(device=DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     return model, optimizer
+
+
+def save_mesh_prediction(
+    case_id: str,
+    epoch: int,
+    alpha: torch.Tensor,
+    log_alpha: torch.Tensor,
+    cd: CaseData,
+    omega_u: float,
+    omega_alpha: float,
+) -> None:
+    """Persist per-case alpha/log-alpha for this epoch."""
+    MESH_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+    alpha_np = alpha.detach().cpu().numpy().astype(np.float32)
+    log_alpha_np = log_alpha.detach().cpu().numpy().astype(np.float32)
+    out_path = (
+        MESH_SAVE_DIR
+        / f"{case_id}_epoch{epoch:03d}_omegaU{omega_u:.3f}_omegaA{omega_alpha:.3f}.npz"
+    )
+    np.savez(
+        out_path,
+        mesh_points=cd.mesh_points,
+        tetrahedra=cd.tetrahedra,
+    alpha=alpha_np,
+    log_alpha=log_alpha_np,
+)
+    print(f"[mesh-save] {out_path}")
 
 
 # -----------------------------
 # 4) Training loop
 # -----------------------------
-def train(num_epochs: int = 50) -> None:
+def train(
+    num_epochs: int = 50,
+    omega_alpha: float = 0.5,
+    omega_u: float = 0.5,
+    avg_steps: bool = True,
+    normalize_data_loss: bool = True,
+    lr: float = 1e-3,
+) -> None:
     # Precompute any missing artifacts, then exit to rerun if new files were created.
     precompute_if_missing()
     # 4.1 global HU range
     hu_min, hu_max = collect_hu_range(CASE_IDS)
     # 4.2 build model + optimizer
-    model, optimizer = build_model_and_optimizer(hu_min, hu_max, hidden_dim=16, lr=1e-3)
+    model, optimizer = build_model_and_optimizer(hidden_dim=16, lr=lr, max_delta_log=0.3)
     # 4.3 enforce load or compute data
     case_data: Dict[str, CaseData] = {}
     for case_id in CASE_IDS:
@@ -327,10 +402,26 @@ def train(num_epochs: int = 50) -> None:
 
             optimizer.zero_grad()
             # # 4.3.1: HU -> log-alpha via GCN (one field per case)
-            alpha, log_alpha = model(cd.hu, cd.neigh_idx, cd.neigh_off)# shapes: (M,), (M,)
-            # SMS expects delta = per-tet log-parameter, theta = scalar offset
-            delta = log_alpha.to(dtype=torch.float64, device=DEVICE)
-            theta = torch.tensor(0.0, dtype=torch.float64, device=DEVICE) # global log-param (kept 0, not trained)
+            delta_log = model(cd.hu, cd.neigh_idx, cd.neigh_off)  # (M,)
+            delta = delta_log.to(dtype=torch.float64, device=DEVICE)
+            # baseline theta is log(alpha0) from HU mapping
+            theta = cd.log_alpha0
+            # Combine for logging/saving
+            alpha_final = torch.clamp(cd.alpha0 * torch.exp(delta), min=ALPHA_MIN, max=ALPHA_MAX)
+            log_alpha_final = torch.log(alpha_final)
+            # Save mesh prediction every 10 epochs for this case
+            if epoch % 10 == 0:
+                save_mesh_prediction(case_id, epoch, alpha_final, log_alpha_final, cd, omega_u, omega_alpha)
+            # Log quantiles/mean for this case
+            alpha_cpu = alpha_final.detach().cpu().numpy()
+            q25, q50, q75 = np.quantile(alpha_cpu, [0.25, 0.5, 0.75])
+            m = float(alpha_cpu.mean())
+            pct_min = 100.0 * float((alpha_cpu <= (ALPHA_MIN + 1e-6)).mean())
+            pct_max = 100.0 * float((alpha_cpu >= (ALPHA_MAX - 1e-6)).mean())
+            print(
+                f"[Epoch {epoch:03d}][{case_id}] alpha q25={q25:.2f} q50={q50:.2f} q75={q75:.2f} "
+                f"mean={m:.2f} clamp_min={pct_min:.2f}% clamp_max={pct_max:.2f}%"
+            )
             # 4.3.2: accumulate loss over timestamps (graph-conv "RNN" over time)
             loss_case = 0.0
             n_steps = len(cd.sms_npz_paths)
@@ -340,12 +431,16 @@ def train(num_epochs: int = 50) -> None:
                 sms_layer = SMSLayer(
                     sim,
                     u_obs_free=u_obs_free,
-                    omega_u=0.5,
-                    omega_alpha=0.5,
+                    omega_u=omega_u,
+                    omega_alpha=omega_alpha,
                     return_components=True,
+                    normalize_data_loss=normalize_data_loss,
                 )
                 loss_t, _extras = sms_layer(theta, delta)
-                loss_case = loss_case + loss_t / n_steps
+                if avg_steps:
+                    loss_case = loss_case + loss_t / n_steps
+                else:
+                    loss_case = loss_case + loss_t
                 del sms_layer
                 del sim
                 # Release Taichi state after each SMS solve iteration
@@ -365,6 +460,67 @@ def train(num_epochs: int = 50) -> None:
         # Release Taichi between epochs to avoid snode buildup
         reset_taichi()
 
+    # Save checkpoint with omega values in filename
+    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    ckpt_name = f"gcn_sms_omegaU{omega_u:.3f}_omegaA{omega_alpha:.3f}.pt"
+    ckpt_path = CHECKPOINT_DIR / ckpt_name
+    torch.save(
+        {
+            "model_state": model.state_dict(),
+            "optimizer_state": optimizer.state_dict(),
+            "omega_u": omega_u,
+            "omega_alpha": omega_alpha,
+            "hu_min": hu_min,
+            "hu_max": hu_max,
+            "epochs": num_epochs,
+        },
+        ckpt_path,
+    )
+    print(f"[checkpoint] Saved to {ckpt_path}")
+
 
 if __name__ == "__main__":
-    train(num_epochs=50)
+    parser = argparse.ArgumentParser(description="Train GCN+SMS with configurable omegas.")
+    parser.add_argument("--num-epochs", type=int, default=50, help="Number of training epochs.")
+    parser.add_argument("--omega-alpha", type=float, default=0.5, help="Alpha TV weight.")
+    parser.add_argument("--omega-u", type=float, default=0.5, help="Displacement TV weight.")
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=1e-3,
+        help="Learning rate for the Adam optimizer.",
+    )
+    parser.add_argument(
+        "--no-step-avg",
+        action="store_true",
+        help="Disable averaging SMS loss over steps (use sum instead).",
+    )
+    parser.add_argument(
+        "--unnormalized-data",
+        action="store_true",
+        help="Use ||u_sim - u_obs|| without dividing by ||u_obs||.",
+    )
+    parser.add_argument(
+        "--log-file",
+        help="Optional path to tee stdout/stderr to a log file.",
+    )
+    
+    args = parser.parse_args()
+
+    log_handle = None
+    if args.log_file:
+        log_path = Path(args.log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_handle = log_path.open("a", buffering=1)
+        sys.stdout = _Tee(sys.stdout, log_handle)
+        sys.stderr = _Tee(sys.stderr, log_handle)
+        print(f"[log] Tee enabled -> {log_path}")
+
+    train(
+        num_epochs=args.num_epochs,
+        omega_alpha=args.omega_alpha,
+        omega_u=args.omega_u,
+        avg_steps=not args.no_step_avg,
+        normalize_data_loss=not args.unnormalized_data,
+        lr=args.lr,
+    )

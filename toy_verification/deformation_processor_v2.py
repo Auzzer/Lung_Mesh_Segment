@@ -2,18 +2,33 @@
 Deformation Processor for Mesh and Image Registration
 
 This script processes mesh and image registration input by:
-1. Calculating deformation axes from SVD decomposition 
+1. Calculating deformation axes from SVD decomposition
 2. Computing particle deformation coefficients
 3. Saving results for further analysis
 
 output will be used for the lung mesh segmentation project's static equilibrium solver.
 """
 
-import taichi as ti
+import os
+
 import meshio
 import numpy as np
+import taichi as ti
 
-ti.init(device_memory_fraction=0.9)
+
+def _init_taichi() -> None:
+    """Try CUDA first, fall back to CPU if unavailable or if TAICHI_ARCH=cpu."""
+    arch_env = os.environ.get("TAICHI_ARCH", "").lower()
+    if arch_env == "cpu":
+        ti.init(arch=ti.cpu, debug=False, kernel_profiler=False, log_level=ti.ERROR)
+        return
+    try:
+        ti.init(arch=ti.cuda, device_memory_fraction=0.9, debug=False, kernel_profiler=False, log_level=ti.ERROR)
+    except Exception:
+        ti.init(arch=ti.cpu, debug=False, kernel_profiler=False, log_level=ti.ERROR)
+
+
+_init_taichi()
 
 # Tolerance constants
 EPS_ZERO = 1e-10
@@ -33,6 +48,7 @@ class DeformationProcessor:
     def __init__(self, pts_np, tets_np, labels_np):
         self.N = pts_np.shape[0]      # #nodes
         self.M = tets_np.shape[0]     # #tets
+        self.dataset_metadata = {}
         
         # Core data fields
         self.x = ti.Vector.field(3, ti.f64, shape=self.N)           # current positions
@@ -167,6 +183,10 @@ class DeformationProcessor:
             for i, j in ti.static(ti.ndrange(3, 4)):
                 self.deformation_coeffs[k][i, j] = 0.0
     
+    def set_metadata(self, **metadata):
+        """Attach auxiliary metadata (subject, states, etc.) to the artifact."""
+        self.dataset_metadata = {k: v for k, v in metadata.items() if v is not None}
+
     def set_displacement_field(self, displacement_np):
         """Set displacement field from 4DCT registration data"""
         if displacement_np.shape != (self.N, 3):
@@ -902,11 +922,7 @@ class DeformationProcessor:
             'is_near_rigid': self.is_near_rigid.to_numpy(),
             
             # Metadata
-            'mesh_info': {
-                'n_nodes': self.N,
-                'n_tetrahedra': self.M,
-                'has_displacement': True if np.any(self.displacement_field.to_numpy()) else False
-            },
+            'mesh_info': self._build_mesh_info(),
             # SMS measurement rows (reference config)
             'r_axis':  self.r_axis.to_numpy(),
             'r_shear': self.r_shear.to_numpy(),
@@ -914,6 +930,17 @@ class DeformationProcessor:
 
         }
         return results
+
+    def _build_mesh_info(self):
+        """Compose mesh + dataset metadata for downstream validation."""
+        mesh_info = {
+            'n_nodes': self.N,
+            'n_tetrahedra': self.M,
+            'has_displacement': bool(np.any(self.displacement_field.to_numpy())),
+        }
+        if self.dataset_metadata:
+            mesh_info.update(self.dataset_metadata)
+        return mesh_info
     
     def save_results(self, output_path):
         """Save results to file"""

@@ -88,30 +88,37 @@ class Emory4DCTDataset(base.BaseDataset):
 
         elif asset_type == 'mask':
             mask_name = selectors['mask_name']
-            return variant_dir / 'TotalSegment' / image_name(state) / f'{mask_name}.nii.gz'
+            return subject_root / 'TotalSegment' / image_name(state) / f'{mask_name}.nii.gz'
 
         elif asset_type == 'mesh':
             mask_name = selectors['mask_name']
             mesh_tag = selectors['mesh_tag']
-            return variant_dir / 'pygalmesh' / f'{image_name(state)}_{mask_name}_{mesh_tag}.xdmf'
+            return subject_root / 'pygalmesh' / f'{image_name(state)}_{mask_name}_{mesh_tag}.xdmf'
 
         elif asset_type == 'disp':
             fix = selectors['fixed_state']
             mov = selectors['moving_state']
             assert fix in self.VALID_STATES
             assert mov in self.VALID_STATES
-            return variant_dir / 'CorrField' / f'case{sid}_{moving_state}_{fixed_state}.nii.gz'
+            return subject_root / 'CorrField' / f'case{sid}_{mov}_{fix}.nii.gz'
 
         elif asset_type == 'kpts':
             return subject_root / 'Sampled4D' / f'case{sid}_4D-75_{state}.txt'
 
         raise RuntimeError(f'unrecognized asset type: {asset_type}')
 
-    def _parse_subject_id(subject: str) -> int:
-        # expected format: Case<sid>_(Pack|Deploy)
-        parts = subject.split('_')
-        if len(parts) == 2 and parts[0].startswith('Case'):
-            return int(parts[0][4:])
+    def _parse_subject_id(self, subject: str) -> int:
+        # acceptable formats: Case<sid>_(Pack|Deploy) or Case<sid>Pack
+        if subject.startswith('Case'):
+            remainder = subject[4:]
+            digits = []
+            for ch in remainder:
+                if ch.isdigit():
+                    digits.append(ch)
+                else:
+                    break
+            if digits:
+                return int(''.join(digits))
 
         raise RuntimeError(f'failed to parse subject id: {subject}')
 
@@ -142,11 +149,12 @@ class Emory4DCTDataset(base.BaseDataset):
                     dataset='Emory4DCT',
                     subject=subj,
                     variant=variant,
-                    visit=None,
-                    fixed_state=fixed,
-                    moving_state=moving,
                     paths=paths,
-                    metadata={}
+                    metadata={
+                        'fixed_state': fixed,
+                        'moving_state': moving,
+                        'variant': variant,
+                    }
                 )
 
 
@@ -546,6 +554,3 @@ class Emory4DCTCase: # DEPRECATED
         selection = self.copy()
         selection.anat = self.anat.sel(*args, **kwargs, method='nearest')
         return selection
-
-
-

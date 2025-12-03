@@ -44,29 +44,56 @@ GRAMS_PER_KG = 1000.0
 POISSON_RATIO = 0.4
 
 # Regularization hyperparameters 
-REG_WEIGHT = 5e-2   # lambda_F: weight for Charbonnier TV regularization on displacement gradient
+REG_WEIGHT = 5e-1   # lambda_F: weight for Charbonnier TV regularization on displacement gradient
+REG_WEIGHT_WARMUP = 1.0  # initial smoothing weight
+REG_WEIGHT_TARGET = REG_WEIGHT
+WARMUP_GLOBAL_ITERS = 2  # θ-only iterations before enabling Stage2
+WARMUP_STEP_CAP_SCALE = 0.4
+BOUND_ACTIVE_THRESHOLD = 0.4
+BOUND_ACTIVE_MAX_RETRIES = 3
+BAND_SHRINK_FACTOR = 0.7
 EPS_REG    = 1e-4   # epsilon: Charbonnier smoothing parameter
 EPS_DIV    = 1e-12  # Stabilizer for data loss denominator
 
-# Physical box for alpha (Pa)
-DEFAULT_ALPHA_MIN = 500.0
-DEFAULT_ALPHA_MAX = 1.0e4
-DEFAULT_MAX_DTHETA = 0.5
-DEFAULT_MAX_DDELTA = 0.25
-
-ALPHA_MIN = DEFAULT_ALPHA_MIN
-ALPHA_MAX = DEFAULT_ALPHA_MAX
+# Physical bound for alpha (Pa)
+ALPHA_MIN = 500.0
+ALPHA_MAX = 1.0e4
 LOG_ALPHA_MIN = math.log(ALPHA_MIN)
 LOG_ALPHA_MAX = math.log(ALPHA_MAX)
+LOG_ALPHA_MID = 0.5 * (LOG_ALPHA_MIN + LOG_ALPHA_MAX)
 EPS_ACTIVE = 1e-6 * (LOG_ALPHA_MAX - LOG_ALPHA_MIN)  # relative tolerance near bounds
 
 # Trust-region style caps for LBFGS steps in log-space
-MAX_DTHETA = DEFAULT_MAX_DTHETA
-MAX_DDELTA = DEFAULT_MAX_DDELTA
+MAX_DTHETA = 0.5
+MAX_DDELTA = 0.25
 
 # Projection heuristics for optimizer resets
 PROJECTION_REBUILD_THRESHOLD = 0.1
 PROJECTION_ACTIVE_FRACTION = 0.05
+
+# Label-aware initialization configuration (Pa ranges inside the global box)
+LABEL_PA_BANDS = {
+    0: (3e3, 8e3),  # background fill
+    1: (5.5e3, 8e3),  # RU lobe
+    2: (4.5e3, 7e3),  # RM lobe
+    3: (3.0e3, 6e3),  # RL lobe
+    4: (5.5e3, 8e3),  # LU lobe
+    5: (3.0e3, 6e3),  # LL lobe
+    6: (8.0e3, 1.0e4),  # Airways
+    7: (8.5e3, 1.0e4),  # Vessels
+}
+DEFAULT_LABEL_PA_BAND = (4.0e3, 7.5e3)
+LABEL_INIT_RNG_SEED = 42
+LOBE_LABELS = (1, 2, 3, 4, 5)
+FIXED_LABELS = (0, 6, 7)
+DELTA_JITTER_RANGE = 0.15  # log-space jitter magnitude for fine-stage seeding
+DELTA_SHRINK_WEIGHT = 5e-3  # label-wise shrinkage strength on delta_k
+DELTA_PRECOND_EPS = 1e-12
+DELTA_SHRINK_MIN_COUNT = 4
+EARLY_DDELTA_CAP = 0.10
+ACTIVE_UPPER_TIGHT_THRESHOLD = 0.35
+ACTIVE_UPPER_RELAX_THRESHOLD = 0.15
+MEAN_OBSERVED_DISP_WARNING = 1.0e-4
 
 
 def set_alpha_box(alpha_min: float, alpha_max: float) -> None:
@@ -126,6 +153,8 @@ def project_log_parameters(
     prev_theta: torch.Tensor | None = None,
     prev_delta: torch.Tensor | None = None,
     mode: str = "both",
+    max_dtheta: float | None = None,
+    max_ddelta: float | None = None,
 ) -> ProjectionOutcome:
     """
     Project (theta, delta) onto the feasible log-alpha box and optionally
@@ -144,11 +173,16 @@ def project_log_parameters(
     if mode not in {"theta", "delta", "both"}:
         raise ValueError(f"Unsupported projection mode: {mode}")
 
+    if max_dtheta is None:
+        max_dtheta = MAX_DTHETA
+    if max_ddelta is None:
+        max_ddelta = MAX_DDELTA
+
     outcome = ProjectionOutcome()
     with torch.no_grad():
         # Track theta caps when requested
         if mode in {"theta", "both"} and prev_theta is not None:
-            theta_step = (theta_param - prev_theta).clamp(min=-MAX_DTHETA, max=MAX_DTHETA)
+            theta_step = (theta_param - prev_theta).clamp(min=-max_dtheta, max=max_dtheta)
             theta_target = prev_theta + theta_step
             if not torch.allclose(theta_target, theta_param):
                 diff = theta_target - theta_param
@@ -160,7 +194,7 @@ def project_log_parameters(
                 outcome.updated = True
 
         if mode in {"delta", "both"} and prev_delta is not None:
-            delta_step = (delta_param - prev_delta).clamp(min=-MAX_DDELTA, max=MAX_DDELTA)
+            delta_step = (delta_param - prev_delta).clamp(min=-max_ddelta, max=max_ddelta)
             delta_target = prev_delta + delta_step
             if not torch.allclose(delta_target, delta_param):
                 diff = delta_target - delta_param
@@ -203,6 +237,116 @@ def project_log_parameters(
                 outcome.updated = True
 
     return outcome
+
+
+def project_lobe_parameters(
+    theta_param: torch.nn.Parameter,
+    delta_lobe_param: torch.nn.Parameter,
+    label_band_lookup: dict[int, tuple[float, float]],
+    prev_theta: torch.Tensor | None = None,
+    prev_delta: torch.Tensor | None = None,
+    max_dtheta: float | None = None,
+    max_ddelta: float | None = None,
+) -> None:
+    """Clamp coarse per-lobe deltas inside both global and label-aware boxes."""
+    if max_dtheta is None:
+        max_dtheta = MAX_DTHETA
+    if max_ddelta is None:
+        max_ddelta = MAX_DDELTA
+
+    with torch.no_grad():
+        if prev_theta is not None:
+            theta_step = (theta_param - prev_theta).clamp(min=-max_dtheta, max=max_dtheta)
+            theta_param.copy_(prev_theta + theta_step)
+        if prev_delta is not None:
+            delta_step = (delta_lobe_param - prev_delta).clamp(min=-max_ddelta, max=max_ddelta)
+            delta_lobe_param.copy_(prev_delta + delta_step)
+
+        theta_value = float(theta_param.item())
+        for idx, label in enumerate(LOBE_LABELS):
+            log_low, log_high = label_band_lookup.get(label, (LOG_ALPHA_MIN, LOG_ALPHA_MAX))
+            band_low = max(LOG_ALPHA_MIN, log_low)
+            band_high = min(LOG_ALPHA_MAX, log_high)
+            delta_low = band_low - theta_value
+            delta_high = band_high - theta_value
+            clamped = delta_lobe_param[idx].clamp(min=delta_low, max=delta_high)
+            delta_lobe_param[idx].copy_(clamped)
+
+
+def _label_log_band(label: int, shrink: float = 1.0) -> tuple[float, float]:
+    pa_low, pa_high = LABEL_PA_BANDS.get(label, DEFAULT_LABEL_PA_BAND)
+    pa_low = max(ALPHA_MIN * 1.05, min(ALPHA_MAX * 0.95, pa_low))
+    pa_high = max(pa_low + 1.0, min(ALPHA_MAX * 0.99, pa_high))
+    log_low = math.log(pa_low)
+    log_high = math.log(pa_high)
+    shrink = max(0.0, min(1.0, shrink))
+    if shrink < 1.0:
+        log_low = LOG_ALPHA_MID + (log_low - LOG_ALPHA_MID) * shrink
+        log_high = LOG_ALPHA_MID + (log_high - LOG_ALPHA_MID) * shrink
+    return log_low, log_high
+
+
+def label_log_midpoint(label: int, shrink: float = 1.0) -> float:
+    """Return the log-space midpoint for a label-aware Pa band."""
+    log_low, log_high = _label_log_band(label, shrink=shrink)
+    return 0.5 * (log_low + log_high)
+
+
+def sample_log_alpha_by_label(labels: np.ndarray, rng: np.random.Generator, shrink: float = 1.0) -> np.ndarray:
+    """Return per-tet log-alpha samples drawn from label-aware bands."""
+    samples = np.empty_like(labels, dtype=np.float64)
+    unique_labels = np.unique(labels)
+    for lbl in unique_labels:
+        band_low, band_high = _label_log_band(int(lbl), shrink=shrink)
+        mask = labels == lbl
+        n = int(mask.sum())
+        if n == 0:
+            continue
+        draws = rng.uniform(low=band_low, high=band_high, size=n)
+        jitter = rng.normal(scale=0.05 * (band_high - band_low), size=n)
+        draws = np.clip(draws + jitter, band_low, band_high)
+        samples[mask] = draws
+    return samples
+
+
+def compute_delta_shrinkage(
+    delta_field: torch.Tensor,
+    labels_tensor: torch.Tensor,
+    weight: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Compute label-wise shrinkage penalty on delta_k so each lobe stays near its mean.
+
+    Returns:
+        shrink_loss: scalar tensor (float64)
+        shrink_grad: per-element gradient contribution (float64)
+    """
+    if weight <= 0.0:
+        zero = torch.zeros(1, dtype=delta_field.dtype, device=delta_field.device)
+        return zero.squeeze(0), torch.zeros_like(delta_field)
+
+    shrink_loss = torch.zeros(1, dtype=delta_field.dtype, device=delta_field.device).squeeze(0)
+    shrink_grad = torch.zeros_like(delta_field)
+    for lbl in LOBE_LABELS:
+        mask = labels_tensor == lbl
+        count = torch.count_nonzero(mask).item()
+        if count < DELTA_SHRINK_MIN_COUNT:
+            continue
+        delta_subset = delta_field[mask]
+        delta_mean = torch.mean(delta_subset)
+        diff = delta_subset - delta_mean
+        shrink_loss = shrink_loss + 0.5 * weight * torch.sum(diff * diff)
+        shrink_grad[mask] = shrink_grad[mask] + weight * diff
+    return shrink_loss, shrink_grad
+
+
+def build_volume_preconditioner(vol_tensor: torch.Tensor) -> torch.Tensor:
+    """Return diagonal preconditioner ~ 1 / volume with mean scaled to 1."""
+    vol_tensor = vol_tensor.to(dtype=torch.float64)
+    vol_mean = torch.mean(vol_tensor)
+    denom = vol_tensor + DELTA_PRECOND_EPS
+    precond = vol_mean / denom
+    return precond
 
 
 def ensure_preprocessed_file(args, log_fn: Callable[[str], None]) -> tuple[Path, dict, bool]:
@@ -298,15 +442,7 @@ def torch_solve_sparse(
 
     _ = max_iter
 
-    if not A_sp.is_cuda:
-        raise ValueError("Sparse matrix must be a CUDA tensor")
-    if A_sp.layout != torch.sparse_csr:
-        raise ValueError("Sparse matrix must be in CSR layout")
-
     b = b.reshape(-1).to(device=A_sp.device, dtype=torch.float64)
-    if b.numel() == 0:
-        return torch.zeros_like(b), 0, 0.0, True, True
-
     A_sp = A_sp.to(torch.float64)
 
     # Zero-copy Torch -> CuPy conversion for CSR solve
@@ -466,8 +602,6 @@ class ConeStaticEquilibrium:
         
         # Get actual number of non-zeros
         nnz = int(self._nnz_counter.to_numpy().item())
-        if nnz == 0:
-            raise RuntimeError("Gradient operator assembly produced zero non-zeros")
         
         # Trim and build sparse matrix
         rows = rows[:nnz]
@@ -907,21 +1041,6 @@ class ConeStaticEquilibrium:
 
         return loss_total, loss_data, loss_reg, grad_alpha
 
-    def get_last_forward_status(self):
-        """Return metadata for the most recent forward torch solve."""
-        return self._last_forward_status
-
-    def get_last_forward_solution_m(self) -> Optional[torch.Tensor]:
-        """Return the latest forward displacement vector in metres."""
-        if self._last_u_star is None:
-            return None
-        return self._last_u_star
-
-    def get_last_backward_status(self):
-        """Return metadata for the most recent backward torch solve."""
-        return self._last_backward_status
-
-
 def save_parameter_heatmap(
     sim: ConeStaticEquilibrium,
     alpha_t: torch.Tensor,
@@ -959,18 +1078,18 @@ def main():
     )
     parser.add_argument("--data-root", default="data/Emory-4DCT", help="Root directory for Emory 4DCT data")
     parser.add_argument("--subject", default="Case1Pack", help="Subject folder name, e.g., Case1Pack")
-    parser.add_argument("--fixed-state", default="T00", help="Fixed respiratory state (e.g., T00)")
-    parser.add_argument("--moving-state", default="T10", help="Moving respiratory state (e.g., T50)")
+    parser.add_argument("--fixed-state", default="T10", help="Fixed respiratory state (e.g., T00)")
+    parser.add_argument("--moving-state", default="T40", help="Moving respiratory state (e.g., T50)")
     parser.add_argument("--variant", default="NIFTI", help="Dataset variant (default: NIFTI)")
     parser.add_argument("--mask-name", default="lung_regions", help="Mask name used during preprocessing")
     parser.add_argument("--mesh-tag", default="lung_regions_11", help="Mesh tag suffix under pygalmesh/")
     parser.add_argument("--cache-dir", default="data_processed_deformation", help="Directory to store generated .npz files")
     parser.add_argument("--preprocessed", help="Path to existing SMS preprocessing .npz (skip generation)")
     parser.add_argument("--force-preprocess", action="store_true", help="Regenerate preprocessing even if cache exists")
-    parser.add_argument("--alpha-min", type=float, default=DEFAULT_ALPHA_MIN, help="Lower physical bound for alpha (Pa)")
-    parser.add_argument("--alpha-max", type=float, default=DEFAULT_ALPHA_MAX, help="Upper physical bound for alpha (Pa)")
-    parser.add_argument("--max-dtheta", type=float, default=DEFAULT_MAX_DTHETA, help="LBFGS step cap for theta (log space)")
-    parser.add_argument("--max-ddelta", type=float, default=DEFAULT_MAX_DDELTA, help="LBFGS step cap for delta field")
+    parser.add_argument("--alpha-min", type=float, default=500.0, help="Lower physical bound for alpha (Pa)")
+    parser.add_argument("--alpha-max", type=float, default=1.0e4, help="Upper physical bound for alpha (Pa)")
+    parser.add_argument("--max-dtheta", type=float, default=0.5, help="LBFGS step cap for theta (log space)")
+    parser.add_argument("--max-ddelta", type=float, default=0.25, help="LBFGS step cap for delta field")
     parser.add_argument("--stage1-max-iters", type=int, default=1, help="Maximum number of Stage 1 (theta) LBFGS iterations")
     args = parser.parse_args()
 
@@ -1058,6 +1177,11 @@ def main():
     u_obs = sim.get_observed_free()
     mean_obs_disp_m = float(torch.mean(torch.abs(u_obs)).item())
     log(f"Mean observed displacement (free DOF): {mean_obs_disp_m:.6e} m")
+    if mean_obs_disp_m < MEAN_OBSERVED_DISP_WARNING:
+        log(
+            "[Sanity] Observed field magnitude is unusually small; verify units in "
+            "get_observed_free() or rescale targets to metres to avoid overly stiff solutions."
+        )
 
     def record_history(scenario_output_dir: Path, scenario_history: list[dict[str, object]]):
         scenario_output_dir.mkdir(parents=True, exist_ok=True)
@@ -1069,6 +1193,10 @@ def main():
         history_entries.extend(scenario_history)
 
     def run_alternating_optimization():
+        class _ClosureStall(Exception):
+            def __init__(self, stage: str):
+                self.stage = stage
+
         scenario_global = "stage1_global"
         scenario_local = "stage2_local"
         scenario_global_dir = output_dir / scenario_global
@@ -1076,77 +1204,161 @@ def main():
         history_global: list[dict[str, object]] = []
         history_local: list[dict[str, object]] = []
 
-        theta_param = torch.nn.Parameter(torch.zeros(1, device='cuda', dtype=torch.float64))
-        delta_param = torch.nn.Parameter(torch.zeros(sim.M, device='cuda', dtype=torch.float64))
-        project_log_parameters(theta_param, delta_param)
+        rng = np.random.default_rng(LABEL_INIT_RNG_SEED)
+        vol_np = sim.vol.to_numpy().astype(np.float64)
+        labels_np = labels_data.astype(np.int32, copy=False)
+        unique_labels = np.unique(labels_np)
+        label_band_lookup = {int(lbl): _label_log_band(int(lbl)) for lbl in unique_labels}
+        for lbl in LOBE_LABELS:
+            if lbl not in label_band_lookup:
+                label_band_lookup[lbl] = _label_log_band(lbl)
+
+        log_mid_field = np.zeros(sim.M, dtype=np.float64)
+        log_low_field = np.zeros(sim.M, dtype=np.float64)
+        log_high_field = np.zeros(sim.M, dtype=np.float64)
+        for lbl, (log_low, log_high) in label_band_lookup.items():
+            mask = labels_np == lbl
+            if not np.any(mask):
+                continue
+            log_mid = 0.5 * (log_low + log_high)
+            log_mid_field[mask] = log_mid
+            log_low_field[mask] = log_low
+            log_high_field[mask] = log_high
+
+        trainable_mask_np = np.isin(labels_np, LOBE_LABELS)
+        jitter = np.zeros(sim.M, dtype=np.float64)
+        if np.any(trainable_mask_np):
+            jitter_vals = rng.uniform(-DELTA_JITTER_RANGE, DELTA_JITTER_RANGE, size=int(np.sum(trainable_mask_np)))
+            jitter[trainable_mask_np] = jitter_vals
+
+        loga_seed = np.clip(log_mid_field + jitter, log_low_field, log_high_field)
+        lobe_volumes = vol_np[trainable_mask_np]
+        if np.sum(lobe_volumes) > 0:
+            theta_seed = float(np.sum(lobe_volumes * log_mid_field[trainable_mask_np]) / np.sum(lobe_volumes))
+        else:
+            total_mass = np.sum(vol_np)
+            denom = total_mass if total_mass > 0 else 1.0
+            theta_seed = float(np.sum(vol_np * log_mid_field) / denom)
+
+        delta_lobe_seed_np = log_mid_field - theta_seed
+        delta_seed_np = loga_seed - theta_seed
+        delta_jitter_np = np.zeros_like(delta_seed_np)
+        delta_jitter_np[trainable_mask_np] = delta_seed_np[trainable_mask_np] - delta_lobe_seed_np[trainable_mask_np]
+        delta_non_trainable_np = np.where(trainable_mask_np, 0.0, delta_seed_np)
+        delta_fixed_reference_np = delta_seed_np.copy()
+
+        theta_param = torch.nn.Parameter(
+            torch.tensor([theta_seed], device='cuda', dtype=torch.float64)
+        )
+
+        delta_lobe_init = []
+        for lbl in LOBE_LABELS:
+            mask = labels_np == lbl
+            if np.any(mask):
+                delta_lobe_init.append(float(np.mean(delta_lobe_seed_np[mask])))
+            else:
+                delta_lobe_init.append(label_log_midpoint(lbl) - theta_seed)
+        delta_lobe_param = torch.nn.Parameter(
+            torch.tensor(delta_lobe_init, device='cuda', dtype=torch.float64)
+        )
+
+        labels_tensor = torch.from_numpy(labels_np.astype(np.int64)).to(device='cuda')
+        trainable_mask_tensor = torch.from_numpy(trainable_mask_np).to(device='cuda', dtype=torch.bool)
+
+        lobe_index_np = -np.ones(sim.M, dtype=np.int64)
+        for idx, lbl in enumerate(LOBE_LABELS):
+            lobe_index_np[labels_np == lbl] = idx
+        lobe_index_tensor = torch.from_numpy(lobe_index_np).to(device='cuda', dtype=torch.long)
+
+        delta_non_trainable_tensor = torch.from_numpy(delta_non_trainable_np).to(device='cuda', dtype=torch.float64)
+        delta_jitter_tensor = torch.from_numpy(delta_jitter_np).to(device='cuda', dtype=torch.float64)
+        delta_fixed_reference = torch.from_numpy(delta_fixed_reference_np).to(device='cuda', dtype=torch.float64)
+        delta_volume_preconditioner = build_volume_preconditioner(sim._vol_torch)
+
+        def build_lobe_delta_field(delta_lobe_values: torch.Tensor) -> torch.Tensor:
+            delta_field = delta_non_trainable_tensor.clone()
+            if torch.count_nonzero(trainable_mask_tensor).item() > 0:
+                idx_map = lobe_index_tensor[trainable_mask_tensor]
+                delta_field[trainable_mask_tensor] = delta_lobe_values[idx_map]
+            return delta_field
+
+        def enforce_fixed_labels(delta_tensor: torch.nn.Parameter) -> None:
+            if torch.count_nonzero(~trainable_mask_tensor).item() == 0:
+                return
+            with torch.no_grad():
+                delta_tensor.data = torch.where(
+                    trainable_mask_tensor,
+                    delta_tensor.data,
+                    delta_fixed_reference,
+                )
+
+        alpha_seed = np.exp(theta_seed + delta_seed_np)
+        total_cells = max(1, alpha_seed.size)
+        low_hits = np.count_nonzero(alpha_seed <= (ALPHA_MIN * (1.0 + 1e-9)))
+        high_hits = np.count_nonzero(alpha_seed >= (ALPHA_MAX * (1.0 - 1e-9)))
+        log(
+            "[Init] alpha stats -- min={:.3e}, max={:.3e}, lower-bound={:.2%}, upper-bound={:.2%}".format(
+                alpha_seed.min() if alpha_seed.size else float('nan'),
+                alpha_seed.max() if alpha_seed.size else float('nan'),
+                low_hits / total_cells,
+                high_hits / total_cells,
+            )
+        )
+
+        delta_stage1_seed_t = build_lobe_delta_field(delta_lobe_param.detach())
+        delta_stage2_seed_t = delta_stage1_seed_t + delta_jitter_tensor
 
         save_parameter_heatmap(
             sim,
-            broadcast_alpha(theta_param.detach(), delta_param.detach()),
+            broadcast_alpha(theta_param.detach(), delta_stage1_seed_t),
             scenario_global_dir / "initial_params.xdmf",
             labels_data,
             log_fn=log,
         )
         save_parameter_heatmap(
             sim,
-            broadcast_alpha(theta_param.detach(), delta_param.detach()),
+            broadcast_alpha(theta_param.detach(), delta_stage2_seed_t),
             scenario_local_dir / "initial_params.xdmf",
             labels_data,
             log_fn=log,
         )
-        log(f"[Stage1] starting optimization (history dir: {scenario_global_dir})")
-        log(f"[Stage2] starting optimization (history dir: {scenario_local_dir})")
+        log(f"[Stage1-Coarse] starting optimization (history dir: {scenario_global_dir})")
+        log(f"[Stage2-Fine] starting optimization (history dir: {scenario_local_dir})")
 
-        def _build_theta_optimizer():
-            return torch.optim.LBFGS(
-                [theta_param],
-                lr=initial_lr,
-                max_iter=20,
-                line_search_fn='strong_wolfe'
-            )
+        base_max_dtheta = MAX_DTHETA
+        base_max_ddelta = MAX_DDELTA
+        reg_weight_state = {"value": REG_WEIGHT_WARMUP}
 
-        def _build_delta_optimizer():
-            return torch.optim.LBFGS(
-                [delta_param],
-                lr=initial_lr,
-                max_iter=20,
-                line_search_fn='strong_wolfe'
-            )
-
-        optimizer_theta = _build_theta_optimizer()
-        optimizer_delta = _build_delta_optimizer()
-
-        num_iterations = 200
         loss_nochange_tol = 1e-6
         param_update_tol = 1e-10
         grad_delta_tol = 1e-7
 
-        global_prev_loss: float | None = None
-        local_prev_loss: float | None = None
-        global_nochange = 0
-        local_nochange = 0
-        global_converged = False
-        local_converged = False
-        global_iter = 0
-        local_iter = 0
+        coarse_optimizer = torch.optim.LBFGS(
+            [theta_param, delta_lobe_param],
+            lr=initial_lr,
+            max_iter=20,
+            line_search_fn='strong_wolfe'
+        )
+        coarse_prev_loss = [None]
+        coarse_state: dict[str, object] = {}
+        coarse_converged = False
+        coarse_iter = 0
 
-        global_closure_state: dict[str, object] = {}
-        local_closure_state: dict[str, object] = {}
-
-        def global_closure():
-            optimizer_theta.zero_grad(set_to_none=True)
-            loga = clamp_log_alpha(theta_param, delta_param.detach())
+        def coarse_closure():
+            coarse_optimizer.zero_grad(set_to_none=True)
+            delta_field = build_lobe_delta_field(delta_lobe_param)
+            loga = clamp_log_alpha(theta_param, delta_field)
             alpha_field = torch.exp(loga)
             beta_field = compute_beta_from_alpha(alpha_field)
             kappa_field = compute_kappa_from_alpha(alpha_field)
 
-            log("[Stage1] assembling stiffness matrix (closure)")
+            log("[Stage1-Coarse] assembling stiffness matrix (closure)")
             sim.assemble_matrix(alpha_field, beta_field, kappa_field)
-            log("[Stage1] forward solve (closure)")
+            log("[Stage1-Coarse] forward solve (closure)")
             sim.forward(tol=1e-6, max_iter=200)
 
             loss_total, loss_data, loss_reg, grad_alpha = sim.backward(
-                u_obs, tol=1e-6, max_iter=200
+                u_obs, tol=1e-6, max_iter=200, reg_weight=REG_WEIGHT_WARMUP
             )
 
             g_log = grad_alpha * alpha_field
@@ -1162,7 +1374,197 @@ def main():
             grad_theta = g_log.sum()
             theta_param.grad = grad_theta.view_as(theta_param)
 
-            global_closure_state['loss_total'] = float(loss_total.item())
+            g_delta = g_log.clone()
+            g_delta_pre = g_delta * delta_volume_preconditioner
+            lobe_grads = torch.zeros_like(delta_lobe_param)
+            for idx, lbl in enumerate(LOBE_LABELS):
+                mask = labels_tensor == lbl
+                if torch.count_nonzero(mask).item() == 0:
+                    continue
+                lobe_grads[idx] = g_delta_pre[mask].sum()
+            delta_lobe_param.grad = lobe_grads
+
+            coarse_state['loss_total'] = float(loss_total.item())
+            coarse_state['loss_data'] = float(loss_data.item())
+            coarse_state['loss_reg'] = float(loss_reg.item())
+            coarse_state['alpha_mean'] = float(alpha_field.mean().item())
+            coarse_state['alpha_std'] = float(alpha_field.std().item())
+            coarse_state['grad_norm'] = float(abs(grad_theta.item()))
+            coarse_state['active_lower_frac'] = lower_frac
+            coarse_state['active_upper_frac'] = upper_frac
+            coarse_state['fw_status'] = sim._last_forward_status
+            coarse_state['bw_status'] = sim._last_backward_status
+            if alpha_gt_torch is not None:
+                coarse_state['alpha_mae'] = float(
+                    torch.mean(torch.abs(alpha_field - alpha_gt_torch)).item()
+                )
+            else:
+                coarse_state['alpha_mae'] = None
+
+            prev_loss = coarse_prev_loss[0]
+            coarse_prev_loss[0] = coarse_state['loss_total']
+            if prev_loss is not None:
+                delta_loss = abs(prev_loss - coarse_state['loss_total'])
+                if delta_loss <= loss_nochange_tol * max(1.0, abs(prev_loss)):
+                    raise _ClosureStall("stage1_coarse")
+
+            log(
+                f"[Stage1-Coarse][closure] loss={coarse_state['loss_total']:.6e}, "
+                f"loss_data={coarse_state['loss_data']:.6e}, "
+                f"loss_reg={coarse_state['loss_reg']:.6e}"
+            )
+            return loss_total
+
+        coarse_max_iters = max(1, stage1_max_iters)
+        while coarse_iter < coarse_max_iters and not coarse_converged:
+            coarse_iter += 1
+            prev_theta = theta_param.detach().clone()
+            prev_delta = delta_lobe_param.detach().clone()
+            try:
+                coarse_optimizer.step(coarse_closure)
+            except _ClosureStall as stall:
+                if stall.stage == "stage1_coarse":
+                    log("[Stage1-Coarse] Loss unchanged within tolerance during closure; stopping.")
+                    coarse_converged = True
+                else:
+                    raise
+
+            project_lobe_parameters(
+                theta_param,
+                delta_lobe_param,
+                label_band_lookup,
+                prev_theta=prev_theta,
+                prev_delta=prev_delta,
+                max_dtheta=base_max_dtheta,
+                max_ddelta=base_max_ddelta,
+            )
+
+            loss_value = coarse_state.get('loss_total')
+            if loss_value is None:
+                log("[Stage1-Coarse] Closure returned no loss; stopping.")
+                coarse_converged = True
+            else:
+                theta_update = float(torch.max(torch.abs(theta_param.detach() - prev_theta)).item())
+                delta_update = float(torch.max(torch.abs(delta_lobe_param.detach() - prev_delta)).item())
+                alpha_field = broadcast_alpha(
+                    theta_param.detach(),
+                    build_lobe_delta_field(delta_lobe_param.detach())
+                )
+                log(
+                    f"[Stage1-Coarse] iter {coarse_iter:03d}: loss={loss_value:.6e}, "
+                    f"alpha_mean={coarse_state['alpha_mean']:.4e}, alpha_std={coarse_state['alpha_std']:.4e}, "
+                    f"theta_update={theta_update:.3e}, delta_update={delta_update:.3e}, "
+                    f"active_lower={coarse_state['active_lower_frac']:.2%}, "
+                    f"active_upper={coarse_state['active_upper_frac']:.2%}"
+                )
+                history_entry = {
+                    "scenario": scenario_global,
+                    "iteration": coarse_iter,
+                    "phase": "coarse",
+                    "loss_total": loss_value,
+                    "loss_data": coarse_state['loss_data'],
+                    "loss_reg": coarse_state['loss_reg'],
+                    "alpha_mean": coarse_state['alpha_mean'],
+                    "alpha_std": coarse_state['alpha_std'],
+                    "grad_theta_norm": coarse_state['grad_norm'],
+                    "theta_value": float(theta_param.detach().item()),
+                    "active_lower_frac": coarse_state['active_lower_frac'],
+                    "active_upper_frac": coarse_state['active_upper_frac'],
+                    "param_update": max(theta_update, delta_update),
+                    "forward_status": coarse_state['fw_status'],
+                    "backward_status": coarse_state['bw_status'],
+                }
+                if coarse_state['alpha_mae'] is not None:
+                    history_entry['alpha_mae'] = coarse_state['alpha_mae']
+                history_global.append(history_entry)
+
+                if delta_update <= param_update_tol and theta_update <= param_update_tol:
+                    log("[Stage1-Coarse] Parameter updates below tolerance; stopping early.")
+                    coarse_converged = True
+
+        delta_stage1_field = build_lobe_delta_field(delta_lobe_param.detach())
+        delta_stage2_seed_t = delta_stage1_field + delta_jitter_tensor
+        save_parameter_heatmap(
+            sim,
+            broadcast_alpha(theta_param.detach(), delta_stage2_seed_t),
+            scenario_local_dir / "initial_params.xdmf",
+            labels_data,
+            log_fn=log,
+        )
+        log(f"[Stage1-Coarse] completed after {coarse_iter} iterations")
+
+        delta_param = torch.nn.Parameter(delta_stage2_seed_t.clone())
+        project_log_parameters(theta_param, delta_param)
+        enforce_fixed_labels(delta_param)
+
+        optimizer_theta = torch.optim.LBFGS(
+            [theta_param],
+            lr=initial_lr,
+            max_iter=20,
+            line_search_fn='strong_wolfe'
+        )
+        optimizer_delta = torch.optim.LBFGS(
+            [delta_param],
+            lr=initial_lr,
+            max_iter=20,
+            line_search_fn='strong_wolfe'
+        )
+
+        num_iterations = 200
+
+        global_converged = False
+        local_converged = False
+        global_iter = 0
+        local_iter = 0
+        global_iter_offset = coarse_iter
+        last_active_upper_frac: float | None = None
+
+        global_closure_state: dict[str, object] = {}
+        local_closure_state: dict[str, object] = {}
+        global_closure_prev_loss = [None]
+        local_closure_prev_loss = [None]
+
+        def determine_ddelta_cap(stage2_ready_flag: bool, last_active: float | None) -> float:
+            early_cap = min(base_max_ddelta, EARLY_DDELTA_CAP)
+            if not stage2_ready_flag:
+                return early_cap * WARMUP_STEP_CAP_SCALE
+            if last_active is None or last_active >= ACTIVE_UPPER_TIGHT_THRESHOLD:
+                return early_cap
+            if last_active <= ACTIVE_UPPER_RELAX_THRESHOLD:
+                return base_max_ddelta
+            return 0.5 * (early_cap + base_max_ddelta)
+
+        def global_closure():
+            optimizer_theta.zero_grad(set_to_none=True)
+            loga = clamp_log_alpha(theta_param, delta_param.detach())
+            alpha_field = torch.exp(loga)
+            beta_field = compute_beta_from_alpha(alpha_field)
+            kappa_field = compute_kappa_from_alpha(alpha_field)
+
+            log("[Stage1-Fine] assembling stiffness matrix (closure)")
+            sim.assemble_matrix(alpha_field, beta_field, kappa_field)
+            log("[Stage1-Fine] forward solve (closure)")
+            sim.forward(tol=1e-6, max_iter=200)
+
+            loss_total, loss_data, loss_reg, grad_alpha = sim.backward(
+                u_obs, tol=1e-6, max_iter=200, reg_weight=reg_weight_state['value']
+            )
+
+            g_log = grad_alpha * alpha_field
+            at_lower = loga <= (LOG_ALPHA_MIN + EPS_ACTIVE)
+            at_upper = loga >= (LOG_ALPHA_MAX - EPS_ACTIVE)
+            block_lower = at_lower & (g_log > 0)
+            block_upper = at_upper & (g_log < 0)
+            g_log = g_log.masked_fill(block_lower | block_upper, 0.0)
+            total_elements = float(alpha_field.numel())
+            lower_frac = float(torch.count_nonzero(at_lower).item()) / total_elements
+            upper_frac = float(torch.count_nonzero(at_upper).item()) / total_elements
+
+            grad_theta = g_log.sum()
+            theta_param.grad = grad_theta.view_as(theta_param)
+
+            loss_total_value = float(loss_total.item())
+            global_closure_state['loss_total'] = loss_total_value
             global_closure_state['loss_data'] = float(loss_data.item())
             global_closure_state['loss_reg'] = float(loss_reg.item())
             global_closure_state['alpha_mean'] = float(alpha_field.mean().item())
@@ -1170,16 +1572,22 @@ def main():
             global_closure_state['grad_norm'] = float(abs(grad_theta.item()))
             global_closure_state['active_lower_frac'] = lower_frac
             global_closure_state['active_upper_frac'] = upper_frac
-            global_closure_state['fw_status'] = sim.get_last_forward_status()
-            global_closure_state['bw_status'] = sim.get_last_backward_status()
+            global_closure_state['fw_status'] = sim._last_forward_status
+            global_closure_state['bw_status'] = sim._last_backward_status
             if alpha_gt_torch is not None:
                 global_closure_state['alpha_mae'] = float(
                     torch.mean(torch.abs(alpha_field - alpha_gt_torch)).item()
                 )
             else:
                 global_closure_state['alpha_mae'] = None
+            prev_loss = global_closure_prev_loss[0]
+            global_closure_prev_loss[0] = loss_total_value
+            if prev_loss is not None:
+                delta_loss = abs(prev_loss - loss_total_value)
+                if delta_loss <= loss_nochange_tol * max(1.0, abs(prev_loss)):
+                    raise _ClosureStall("stage1")
             log(
-                f"[Stage1][closure] loss={global_closure_state['loss_total']:.6e}, "
+                f"[Stage1-Fine][closure] loss={global_closure_state['loss_total']:.6e}, "
                 f"loss_data={global_closure_state['loss_data']:.6e}, "
                 f"loss_reg={global_closure_state['loss_reg']:.6e}, "
                 f"theta={float(theta_param.item()):.6e}"
@@ -1193,13 +1601,13 @@ def main():
             beta_field = compute_beta_from_alpha(alpha_field)
             kappa_field = compute_kappa_from_alpha(alpha_field)
 
-            log("[Stage2] assembling stiffness matrix (closure)")
+            log("[Stage2-Fine] assembling stiffness matrix (closure)")
             sim.assemble_matrix(alpha_field, beta_field, kappa_field)
-            log("[Stage2] forward solve (closure)")
+            log("[Stage2-Fine] forward solve (closure)")
             sim.forward(tol=1e-6, max_iter=200)
 
             loss_total, loss_data, loss_reg, grad_alpha = sim.backward(
-                u_obs, tol=1e-6, max_iter=200
+                u_obs, tol=1e-6, max_iter=200, reg_weight=reg_weight_state['value']
             )
 
             g_log = grad_alpha * alpha_field
@@ -1212,43 +1620,77 @@ def main():
             lower_frac = float(torch.count_nonzero(at_lower).item()) / total_elements
             upper_frac = float(torch.count_nonzero(at_upper).item()) / total_elements
 
-            delta_param.grad = g_log.clone()
+            shrink_loss, shrink_grad = compute_delta_shrinkage(
+                delta_param,
+                labels_tensor,
+                DELTA_SHRINK_WEIGHT,
+            )
+            combined_loss = loss_total + shrink_loss
 
-            local_closure_state['loss_total'] = float(loss_total.item())
+            g_delta = g_log + shrink_grad
+            g_delta = g_delta.masked_fill(~trainable_mask_tensor, 0.0)
+            g_delta = g_delta * delta_volume_preconditioner
+            delta_param.grad = g_delta
+
+            loss_total_value = float(combined_loss.item())
+            local_closure_state['loss_total'] = loss_total_value
             local_closure_state['loss_data'] = float(loss_data.item())
             local_closure_state['loss_reg'] = float(loss_reg.item())
+            local_closure_state['loss_param'] = float(shrink_loss.item())
             local_closure_state['alpha_mean'] = float(alpha_field.mean().item())
             local_closure_state['alpha_std'] = float(alpha_field.std().item())
-            local_closure_state['grad_norm'] = float(g_log.abs().mean().item())
+            local_closure_state['grad_norm'] = float(g_delta.abs().mean().item())
             local_closure_state['active_lower_frac'] = lower_frac
             local_closure_state['active_upper_frac'] = upper_frac
-            local_closure_state['fw_status'] = sim.get_last_forward_status()
-            local_closure_state['bw_status'] = sim.get_last_backward_status()
+            local_closure_state['fw_status'] = sim._last_forward_status
+            local_closure_state['bw_status'] = sim._last_backward_status
             if alpha_gt_torch is not None:
                 local_closure_state['alpha_mae'] = float(
                     torch.mean(torch.abs(alpha_field - alpha_gt_torch)).item()
                 )
             else:
                 local_closure_state['alpha_mae'] = None
+            prev_loss = local_closure_prev_loss[0]
+            local_closure_prev_loss[0] = loss_total_value
+            if prev_loss is not None:
+                delta_loss = abs(prev_loss - loss_total_value)
+                if delta_loss <= loss_nochange_tol * max(1.0, abs(prev_loss)):
+                    raise _ClosureStall("stage2")
             log(
-                f"[Stage2][closure] loss={local_closure_state['loss_total']:.6e}, "
+                f"[Stage2-Fine][closure] loss={local_closure_state['loss_total']:.6e}, "
                 f"loss_data={local_closure_state['loss_data']:.6e}, "
-                f"loss_reg={local_closure_state['loss_reg']:.6e}"
+                f"loss_reg={local_closure_state['loss_reg']:.6e}, "
+                f"loss_param={local_closure_state['loss_param']:.6e}"
             )
-            return loss_total
+            return combined_loss
 
-            for _ in range(num_iterations):
-                if not global_converged:
-                    global_iter += 1
-                    prev_theta = theta_param.detach().clone()
+        for _ in range(num_iterations):
+            theta_warmup_active = (global_iter < WARMUP_GLOBAL_ITERS) and not global_converged
+            current_dtheta_cap = base_max_dtheta * (WARMUP_STEP_CAP_SCALE if theta_warmup_active else 1.0)
+            reg_weight_state['value'] = REG_WEIGHT_WARMUP if theta_warmup_active else REG_WEIGHT_TARGET
+
+            stage1_stalled = False
+            if not global_converged:
+                global_iter += 1
+                prev_theta = theta_param.detach().clone()
+                try:
                     optimizer_theta.step(global_closure)
+                except _ClosureStall as stall:
+                    if stall.stage == "stage1":
+                        log("[Stage1-Fine] Loss unchanged within tolerance during closure; stopping.")
+                        global_converged = True
+                        stage1_stalled = True
+                    else:
+                        raise
+                theta_update = float(torch.max(torch.abs(theta_param.detach() - prev_theta)).item())
+                if not stage1_stalled:
                     projection = project_log_parameters(
                         theta_param,
                         delta_param,
                         prev_theta=prev_theta,
                         mode="theta",
+                        max_dtheta=current_dtheta_cap,
                     )
-                    theta_update = float(torch.max(torch.abs(theta_param.detach() - prev_theta)).item())
                     if projection.updated:
                         optimizer_theta.state.clear()
                         optimizer_delta.state.clear()
@@ -1256,28 +1698,27 @@ def main():
                             projection.theta_correction >= PROJECTION_REBUILD_THRESHOLD
                             or projection.delta_frac_at_bound >= PROJECTION_ACTIVE_FRACTION
                         ):
-                            optimizer_theta = _build_theta_optimizer()
+                            optimizer_theta = torch.optim.LBFGS(
+                                [theta_param],
+                                lr=initial_lr,
+                                max_iter=20,
+                                line_search_fn='strong_wolfe'
+                            )
 
                     loss_value_raw = global_closure_state.get('loss_total')
                     if loss_value_raw is None:
-                        log("[Stage1] Closure returned no loss; stopping.")
+                        log("[Stage1-Fine] Closure returned no loss; stopping.")
                         global_converged = True
                     else:
                         loss_value = float(loss_value_raw)
-                        if global_prev_loss is not None:
-                            if abs(global_prev_loss - loss_value) <= loss_nochange_tol * max(1.0, abs(global_prev_loss)):
-                                global_nochange += 1
-                            else:
-                                global_nochange = 0
-                        global_prev_loss = loss_value
-
                         alpha_field = broadcast_alpha(theta_param.detach(), delta_param.detach())
                         lr_theta = float(optimizer_theta.param_groups[0]["lr"])
                         theta_value = float(theta_param.detach().item())
                         theta_low = float((LOG_ALPHA_MIN - torch.max(delta_param.detach())).item())
                         theta_high = float((LOG_ALPHA_MAX - torch.min(delta_param.detach())).item())
+                        iter_display = global_iter_offset + global_iter
                         log(
-                            f"[Stage1] iter {global_iter:03d}: loss={loss_value:.6e}, "
+                            f"[Stage1-Fine] iter {iter_display:03d}: loss={loss_value:.6e}, "
                             f"alpha_mean={alpha_field.mean().item():.4e}, alpha_std={alpha_field.std().item():.4e}, "
                             f"grad_theta={global_closure_state['grad_norm']:.4e}, theta={theta_value:.6e}, "
                             f"update={theta_update:.3e}, lr={lr_theta:.2e}, "
@@ -1287,7 +1728,7 @@ def main():
                         )
                         history_entry = {
                             "scenario": scenario_global,
-                            "iteration": global_iter,
+                            "iteration": iter_display,
                             "phase": "iterate",
                             "loss_total": loss_value,
                             "loss_data": global_closure_state['loss_data'],
@@ -1309,27 +1750,39 @@ def main():
                             history_entry['alpha_mae'] = global_closure_state['alpha_mae']
                         history_global.append(history_entry)
 
-                        if global_nochange >= 2:
-                            log("[Stage1] Loss stalled; stopping early.")
-                            global_converged = True
-                        elif theta_update <= param_update_tol:
-                            log("[Stage1] Parameter update below tolerance; stopping early.")
-                            global_converged = True
-                        elif global_iter >= stage1_max_iters:
-                            log(f"[Stage1] Reached iteration cap ({stage1_max_iters}); stopping.")
+                        if theta_update <= param_update_tol:
+                            log("[Stage1-Fine] Parameter update below tolerance; stopping early.")
                             global_converged = True
 
-                if not local_converged:
-                    local_iter += 1
-                    prev_delta = delta_param.detach().clone()
+            stage2_ready = (global_iter >= WARMUP_GLOBAL_ITERS) or global_converged
+            current_ddelta_cap = determine_ddelta_cap(stage2_ready, last_active_upper_frac)
+            reg_weight_state['value'] = REG_WEIGHT_TARGET if stage2_ready else REG_WEIGHT_WARMUP
+
+            if stage2_ready and not local_converged:
+                stage2_stalled = False
+                local_iter += 1
+                prev_delta = delta_param.detach().clone()
+                try:
                     optimizer_delta.step(local_closure)
+                except _ClosureStall as stall:
+                    if stall.stage == "stage2":
+                        log("[Stage2-Fine] Loss unchanged within tolerance during closure; stopping.")
+                        local_converged = True
+                        stage2_stalled = True
+                    else:
+                        raise
+                enforce_fixed_labels(delta_param)
+                delta_update = float(torch.max(torch.abs(delta_param.detach() - prev_delta)).item())
+                if not stage2_stalled:
                     projection = project_log_parameters(
                         theta_param,
                         delta_param,
                         prev_delta=prev_delta,
                         mode="delta",
+                        max_dtheta=current_dtheta_cap,
+                        max_ddelta=current_ddelta_cap,
                     )
-                    delta_update = float(torch.max(torch.abs(delta_param.detach() - prev_delta)).item())
+                    enforce_fixed_labels(delta_param)
                     if projection.updated:
                         optimizer_theta.state.clear()
                         optimizer_delta.state.clear()
@@ -1337,21 +1790,19 @@ def main():
                             projection.delta_correction >= PROJECTION_REBUILD_THRESHOLD
                             or projection.delta_frac_at_bound >= PROJECTION_ACTIVE_FRACTION
                         ):
-                            optimizer_delta = _build_delta_optimizer()
+                            optimizer_delta = torch.optim.LBFGS(
+                                [delta_param],
+                                lr=initial_lr,
+                                max_iter=20,
+                                line_search_fn='strong_wolfe'
+                            )
 
                     loss_value_raw = local_closure_state.get('loss_total')
                     if loss_value_raw is None:
-                        log("[Stage2] Closure returned no loss; stopping.")
+                        log("[Stage2-Fine] Closure returned no loss; stopping.")
                         local_converged = True
                     else:
                         loss_value = float(loss_value_raw)
-                        if local_prev_loss is not None:
-                            if abs(local_prev_loss - loss_value) <= loss_nochange_tol * max(1.0, abs(local_prev_loss)):
-                                local_nochange += 1
-                            else:
-                                local_nochange = 0
-                        local_prev_loss = loss_value
-
                         alpha_field = broadcast_alpha(theta_param.detach(), delta_param.detach())
                         lr_delta = float(optimizer_delta.param_groups[0]["lr"])
                         delta_rms = float(torch.norm(delta_param.detach()).item() / math.sqrt(sim.M))
@@ -1359,11 +1810,13 @@ def main():
                         delta_std = float(delta_param.detach().std().item())
                         grad_delta_mean = float(local_closure_state['grad_norm'])
                         log(
-                            f"[Stage2] iter {local_iter:03d}: loss={loss_value:.6e}, "
+                            f"[Stage2-Fine] iter {local_iter:03d}: loss={loss_value:.6e}, "
                             f"alpha_mean={alpha_field.mean().item():.4e}, alpha_std={alpha_field.std().item():.4e}, "
                             f"grad_delta_mean={grad_delta_mean:.4e}, delta_mean={delta_mean:.4e}, "
                             f"delta_std={delta_std:.4e}, delta_rms={delta_rms:.4e}, "
+                            f"loss_param={local_closure_state['loss_param']:.4e}, "
                             f"update={delta_update:.3e}, lr={lr_delta:.2e}, "
+                            f"delta_cap={current_ddelta_cap:.2e}, "
                             f"active_lower={local_closure_state['active_lower_frac']:.2%}, "
                             f"active_upper={local_closure_state['active_upper_frac']:.2%}"
                         )
@@ -1374,6 +1827,7 @@ def main():
                             "loss_total": loss_value,
                             "loss_data": local_closure_state['loss_data'],
                             "loss_reg": local_closure_state['loss_reg'],
+                            "loss_param": local_closure_state['loss_param'],
                             "alpha_mean": local_closure_state['alpha_mean'],
                             "alpha_std": local_closure_state['alpha_std'],
                             "grad_delta_mean": grad_delta_mean,
@@ -1383,6 +1837,7 @@ def main():
                             "active_lower_frac": local_closure_state['active_lower_frac'],
                             "active_upper_frac": local_closure_state['active_upper_frac'],
                             "param_update": delta_update,
+                            "delta_step_cap": current_ddelta_cap,
                             "learning_rate": lr_delta,
                             "forward_status": local_closure_state['fw_status'],
                             "backward_status": local_closure_state['bw_status'],
@@ -1390,66 +1845,65 @@ def main():
                         if local_closure_state['alpha_mae'] is not None:
                             history_entry['alpha_mae'] = local_closure_state['alpha_mae']
                         history_local.append(history_entry)
+                        last_active_upper_frac = local_closure_state['active_upper_frac']
 
                         if grad_delta_mean < grad_delta_tol:
                             log(
-                                f"[Stage2] Gradient mean {grad_delta_mean:.4e} below "
+                                f"[Stage2-Fine] Gradient mean {grad_delta_mean:.4e} below "
                                 f"threshold {grad_delta_tol:.1e}; stopping."
                             )
                             local_converged = True
-                        elif local_nochange >= 2:
-                            log("[Stage2] Loss stalled; stopping early.")
-                            local_converged = True
                         elif delta_update <= param_update_tol:
-                            log("[Stage2] Parameter update below tolerance; stopping early.")
+                            log("[Stage2-Fine] Parameter update below tolerance; stopping early.")
                             local_converged = True
 
-                if global_converged and local_converged:
-                    break
+            if global_converged and local_converged:
+                break
 
-            theta_final = theta_param.detach().clone()
-            delta_final = delta_param.detach().clone()
-            alpha_final_field = broadcast_alpha(theta_final, delta_final)
+        theta_final = theta_param.detach().clone()
+        delta_final = delta_param.detach().clone()
+        alpha_final_field = broadcast_alpha(theta_final, delta_final)
 
-            save_parameter_heatmap(
-                sim,
-                alpha_final_field,
-                scenario_global_dir / "final_params.xdmf",
-                labels_data,
-                log_fn=log,
-            )
-            save_parameter_heatmap(
-                sim,
-                alpha_final_field,
-                scenario_local_dir / "final_params.xdmf",
-                labels_data,
-                log_fn=log,
-            )
+        save_parameter_heatmap(
+            sim,
+            alpha_final_field,
+            scenario_global_dir / "final_params.xdmf",
+            labels_data,
+            log_fn=log,
+        )
+        save_parameter_heatmap(
+            sim,
+            alpha_final_field,
+            scenario_local_dir / "final_params.xdmf",
+            labels_data,
+            log_fn=log,
+        )
 
-            history_global.append({
-                "scenario": scenario_global,
-                "iteration": len(history_global) + 1,
-                "phase": "final",
-                "loss_total": global_closure_state.get('loss_total'),
-                "alpha_mean": float(alpha_final_field.mean().item()),
-                "alpha_std": float(alpha_final_field.std().item()),
-                "theta_value": float(theta_final.item()),
-            })
-            history_local.append({
-                "scenario": scenario_local,
-                "iteration": len(history_local) + 1,
-                "phase": "final",
-                "loss_total": local_closure_state.get('loss_total'),
-                "alpha_mean": float(alpha_final_field.mean().item()),
-                "alpha_std": float(alpha_final_field.std().item()),
-                "delta_rms": float(torch.norm(delta_final).item() / math.sqrt(sim.M)),
-            })
+        history_global.append({
+            "scenario": scenario_global,
+            "iteration": len(history_global) + 1,
+            "phase": "final",
+            "loss_total": global_closure_state.get('loss_total'),
+            "alpha_mean": float(alpha_final_field.mean().item()),
+            "alpha_std": float(alpha_final_field.std().item()),
+            "theta_value": float(theta_final.item()),
+        })
+        history_local.append({
+            "scenario": scenario_local,
+            "iteration": len(history_local) + 1,
+            "phase": "final",
+            "loss_total": local_closure_state.get('loss_total'),
+            "loss_param": local_closure_state.get('loss_param'),
+            "alpha_mean": float(alpha_final_field.mean().item()),
+            "alpha_std": float(alpha_final_field.std().item()),
+            "delta_rms": float(torch.norm(delta_final).item() / math.sqrt(sim.M)),
+        })
 
-            record_history(scenario_global_dir, history_global)
-            record_history(scenario_local_dir, history_local)
-            log("[Stage1] completed")
-            log("[Stage2] completed")
-            return theta_final, delta_final, alpha_final_field
+        record_history(scenario_global_dir, history_global)
+        record_history(scenario_local_dir, history_local)
+        log("[Stage1-Fine] completed")
+        log("[Stage2-Fine] completed")
+        return theta_final, delta_final, alpha_final_field
 
     theta_final, delta_final, alpha_final_field = run_alternating_optimization()
 

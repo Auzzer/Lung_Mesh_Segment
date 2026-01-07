@@ -280,3 +280,4 @@ old_versions/
 EXPs/Emory4DCT/Emory-4DCT/*
 EXPs/droop_cone/precomputed_matrices/*
 EXPs/droop_cone/hetero_verification/cone_data/*
+checkpoints/

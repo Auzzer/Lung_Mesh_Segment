@@ -68,9 +68,11 @@ def interpolate_to_ct(
     base_time: str = "T00",
     return_kpa: bool = False,
     mask_path: str | Path | None = None,
+    mask_out_path: str | Path | None = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Interpolate per-tet alpha / log_alpha from a mesh NPZ onto the CT voxel grid.
+    Optionally save a CT-aligned mask (from ``mask_path`` or ``E_vol > 0``).
     """
     ct_vol, vox, E_node, ct_aff = mesh_to_ct_coords(
         mesh_npz=mesh_npz,
@@ -105,6 +107,7 @@ def interpolate_to_ct(
     E_vol = np.zeros(ct_shape, dtype=np.float32)
     E_vol[np.ix_(gi, gj, gk)] = E_vals.reshape(len(gi), len(gj), len(gk))
 
+    mask = None
     # Optional: restrict to lung mask
     if mask_path is not None:
         mask_img = nib.load(str(mask_path))
@@ -113,8 +116,19 @@ def interpolate_to_ct(
             raise ValueError(
                 f"Mask shape {mask_data.shape[:3]} does not match CT shape {ct_shape}"
             )
-        lung = mask_data > 0.5
-        E_vol[~lung] = 0.0
+        mask = mask_data > 0.5
+        E_vol[~mask] = 0.0
+
+    if mask_out_path is not None:
+        if mask is None:
+            mask = E_vol > 0.0
+        mask_out_path = Path(mask_out_path)
+        mask_out_path.parent.mkdir(parents=True, exist_ok=True)
+        ct_img = nib.load(str(ct_path))
+        nib.save(
+            nib.Nifti1Image(mask.astype(np.uint8), ct_img.affine, ct_img.header),
+            str(mask_out_path),
+        )
 
     return ct_vol, E_vol, ct_aff
 

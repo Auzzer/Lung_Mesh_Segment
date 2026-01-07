@@ -58,34 +58,273 @@ The abstract should briefly summarize the contents of the paper in
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Introduction}
 
+
+Chronic Obstructive Pulmonary Disease (COPD) is a paradigmatic example of a condition in which 
+altered tissue mechanics play a central role in disease progression and spatial heterogeneity. 
+Lung tissue stiffness (elastic modulus) can vary dramatically between healthy and diseased regions, 
+reflecting underlying structural changes in the parenchyma. 
+Fibrotic remodeling increases tissue rigidity through excess extracellular‑matrix deposition,
+and such stiffening has been linked to disease severity in fibrosis and cancer. 
+In contrast, emphysema is characterized by destruction and enlargement of airspaces, 
+loss of elastic recoil, and abnormally low tissue stiffness. 
+Many COPD patients display a mixture of localized fibrosis and emphysema, 
+so global lung function metrics (such as spirometry) tend to mask regional dysfunction. 
+Accurate, high‑resolution maps of regional lung elasticity would therefore be highly valuable: 
+they could help identify and characterize diseased subregions in heterogeneous lungs, 
+guide focal therapies, and enable personalized tracking of COPD progression.
+
+Noninvasive elastography techniques attempt to quantify stiffness by applying mechanical vibrations 
+and imaging the resulting deformations. Magnetic resonance elastography (MRE), 
+for instance, uses motion‑encoding gradients to capture shear wave propagation 
+and is now widely used to stage liver fibrosis.\cite{pollack2021deep} 
+However, translating these ideas to the lungs has proven extremely challenging. 
+The rib cage and chest wall absorb or attenuate externally induced vibrations,
+limiting wave penetration into the lung parenchyma; 
+respiratory motion complicates displacement measurements and destabilizes the inverse reconstruction; 
+and the air content of lung tissue severely limits both MRI signal and ultrasound transmission. 
+As a result, there is currently no routine elastography modality for the lungs, 
+and clinicians lack a direct imaging biomarker of regional lung elasticity.
+
+To circumvent these limitations, several groups have turned to medical imaging
+and biomechanical modeling. Respiratory‑gated 4D CT can capture lung motion over
+the breathing cycle~\cite{keall2006management}, and finite‑element models of lung mechanics 
+have been used to explore how spatially varying stiffness influences 
+deformation~\cite{parameswaran2011linking,suki2011lung,ito2005mechanics}. In principle, one can
+pose a PDE‑constrained inverse problem: estimate a 3D elasticity field such that the
+simulated deformations match those observed in 4D CT~\cite{zhang2018inverse,hasse2017estimation}. 
+In practice, this problem is severely ill‑posed and computationally 
+demanding~\cite{hasse2017estimation}. Many stiffness distributions can
+produce similar displacement fields unless strong regularization is imposed, and tra-
+ditional approaches require case‑by‑case optimization that is far too slow for clinical
+use~\cite{zhang2018inverse}. Moreover, 4D CT itself is not routinely acquired in COPD care 
+because of radiation dose and scanner time~\cite{mori2009effective}, 
+further limiting the practicality of purely model‑based elastography.
+
+Deep learning appears to offer an attractive alternative by learning statistical links between 
+image appearance and tissue mechanics. In earlier work on the liver\cite{pollack2021deep}, 
+we trained convolutional neural networks to predict liver stiffness directly from routine MR images, 
+using MRE‑derived elastograms as supervision. Although these models captured coarse trends—distinguishing, 
+for example, clearly stiff from clearly soft livers—their voxel‑wise accuracy 
+and generalization across scanners and protocols were limited. 
+Performance degraded outside the distribution of the training data, 
+and the networks tended to regress toward population‑average stiffness 
+values rather than recovering fine‑scale mechanical heterogeneity. 
+More fundamentally, such approaches require paired imaging and elastography data for training, 
+which are not available for the lungs.
+
+We also explored a more physics‑driven strategy on synthetic data: 
+using a differentiable implicit spring–mass system (SMS) \cite{baraff2023large} to simulate 
+the motion of heterogeneous spring mass phantoms and training neural networks 
+to recover the underlying stiffness pattern 
+from observed deformations. 
+In that setting we coupled a 3D convolutional network to an implicit SMS implemented and 
+attempted to learn stiffness parameters solely by minimizing the discrepancy between simulated 
+and target motion. However, back‑propagating through the implicit solver 
+and its sparse linear algebra proved numerically fragile; 
+gradients were noisy and the learned stiffness fields were almost indistinguishable from random guesses, 
+despite visually reasonable motion fields. 
+%\begin{figure}[h]
+%    \centering
+%    \includegraphics[width=0.45\textwidth]{hierarchy_transformer.png}
+%    \includegraphics[width=0.45\textwidth]{3d_unet.png}
+%    \caption{We tried to use Unet or Transformer to directly learn the mapping from displacement to stiffness on synthetic data, 
+%    but both models failed to produce meaningful results. 
+%    Left: Vision Transformer Prediction; Right: 3D Unet Prediction.
+%    }
+%\end{figure}
+A more stable variant, in which a CNN or transformer was supervised directly with ground‑truth stiffness 
+maps generated by the simulator, did learn to predict material patterns on the training distribution, 
+but only because it was given explicit labels rather than inferring material properties from physics.
+These experiments reinforced an important lesson: naïve deep networks, even when coupled to a simulator, 
+do not automatically "discover" constitutive parameters from kinematic data; 
+without carefully designed physical structure and priors, the inverse problem remains ill‑posed.
+
+
+
+Motivated by these observations, we adopt a different point of view in this work and develop 
+a physics‑informed learning framework tailored to lung mechanics. Instead of asking a network 
+to infer stiffness solely from motion or from scarce elastography labels, 
+we combine (i) strong image‑based priors derived from CT Hounsfield units and lung anatomy, 
+with (ii) an explicit, differentiable model of lung elasticity that is enforced during training. 
+Concretely, we represent the lung parenchyma with a tetrahedral mesh and 
+use a small‑strain, axis‑aligned SMS discretization of static equilibrium as our forward physical model. 
+A graph convolutional network (GCN) defined on the mesh predicts a spatial field of stiffness 
+parameters (shear moduli) from CT‑derived features and mesh connectivity. During training, 
+these predicted stiffness fields are passed through the SMS layer to simulate quasi‑static deformations 
+under measured boundary conditions; the resulting displacements are compared to those obtained 
+from 4D CT registration, and the GCN parameters are updated to minimize this physics‑guided discrepancy, 
+together with regularization terms that promote spatial smoothness and scale‑invariant stiffness variations.
+
+In this sense, our approach is "physics‑informed" but differs from classical 
+physics ‑informed neural networks: the PDE is solved with a conventional (but differentiable) 
+discretization, and the neural network is used only to propose material parameters 
+rather than to represent the displacement field itself. Crucially, 
+the heavy PDE‑constrained optimization is amortized across the training cohort. 
+Once trained, the GCN can map a single inspiratory CT scan to a full 3D stiffness distribution 
+on the mesh in one forward pass, without any per‑patient inverse solve.
+
+In summary, this work introduces a lung elastography framework that combines 
+(1) an axis‑aligned SMS discretization of small‑strain elasticity suited for efficient GPU implementation, 
+(2) a mesh‑based GCN that predicts element‑wise stiffness from routine CT‑derived features, 
+and (3) a PDE‑constrained training procedure 
+that enforces biomechanical consistency using deformation data extracted from 4D CT. 
+We demonstrate on a controlled drooped‑cone experiment that the SMS discretization 
+faithfully approximates standard finite‑element solutions and enables accurate recovery of 
+heterogeneous stiffness. We then apply the full SMS+GCN framework to Emory 4D CT data 
+and show that the recovered stiffness maps highlight emphysematous regions and capture
+expected basal–to–apical stiffness gradients in COPD lungs, 
+suggesting that physics‑informed learning can provide clinically meaningful estimates of
+regional lung mechanics from standard imaging.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Methodology}
 \subsection{Problem Setting and Notations}
-We work on a tetrahedral mesh with $N$ vertices and $M$ elements.
-For each tetra $k\in\{1,\ldots,M\}$ we have:
-The displacement is viewed as a smooth field on the reference configuration,
 
-$$u:\R^3\to\R^3,\qquad X\mapsto u(X),$$
-and write the deformation map as
+In continuum mechanics, the local deformation is characterized by the deformation 
+gradient $F$, which maps an infinitesimal material line element in the reference 
+configuration to its image in the current configuration via $dx = F dX$.
+For example, consider a single 2D triangular finite element with reference vertices 
+$X_1, X_2, X_3 \in \mathbb{R}^2$ and current vertices $x_1, x_2, x_3 \in \mathbb{R}^2$. 
+In a constant strain triangle, the deformation is assumed affine over the element,
 
-$$\varphi(X)=X + u(X),\qquad X\in \mathrm{R}^3.$$
-The deformation gradient (Jacobian of $\varphi$ with respect to the reference
-coordinates $X$) is
-\begin{equation}
-F = \nabla_X \varphi(X) = I + H,\qquad
-H := \nabla_X u(X).
-\end{equation}
-The small–strain tensor is the symmetric part of $H$:
-\begin{equation}
-\varepsilon := \tfrac12\bigl(H + H^\top\bigr).
-\end{equation}
-For each element $k$ we work with a (possibly element–dependent) orthonormal
-triad $\{e_0,e_1,e_2\}$ in the \emph{reference} configuration, representing the
-local material axes (for example extracted via the SVD--based anisotropy
-construction described earlier). We assume:
-\[
-e_\ell\cdot e_m = \delta_{\ell m}, \qquad
-e_0 \times e_1 = e_2 \quad\text{(right‑handed basis)}.
-\]
+$$
+x(X)=F X+b
+$$
+
+with constant $F \in \mathbb{R}^{2 \times 2}$ and translation $b \in \mathbb{R}^2$. 
+Under this assumption, the statement $d x=F d X$ holds everywhere inside the triangle: 
+every infinitesimal direction is transformed by the same linear operator $F$, 
+which is precisely why the element strain is constant.
+
+A practical way to compute $F$ is to use the element edges as a local basis. 
+Define the reference and current edge matrices
+
+$$
+D_m=\left[\begin{array}{ll}
+X_2-X_1 & X_3-X_1
+\end{array}\right], \quad D_s=\left[\begin{array}{ll}
+x_2-x_1 & x_3-x_1
+\end{array}\right]
+$$
+
+
+Because an affine map sends reference edges to current edges, one has $D_s=F D_m$, and therefore
+
+$$
+F=D_s D_m^{-1}
+$$
+
+provided the reference triangle is nondegenerate (so $D_m$ is invertible). 
+Intuitively, $D_m$ encodes the two in-plane directions and lengths of the reference triangle, 
+$D_s$ encodes their deformed versions, and $F$ is the unique linear transformation that 
+matches one to the other.
+Strain is introduced as a measure of deformation that removes rigid motion 
+and retains only changes in lengths and angles. 
+This viewpoint emerges directly from how $F$ changes the metric. 
+The squared length of a reference line element is $d S^2=d X^{\top} d X$, 
+while the squared length after deformation is
+
+$$
+d s^2=d x^{\top} d x=(F d X)^{\top}(F d X)=d X^{\top}\left(F^{\top} F\right) d X .
+$$
+
+
+The deformation $F$ usually consists an orthogonal rotation tensor $R$ 
+and a symmetric right stretch tensor $U$: $F=R U$. To isolate the pure stretch component,
+we introduce the right Cauchy-Green deformation tensor:
+$$
+C=F^{\top} F = (RU)^{\top} (RU) = U^{\top} R^{\top} R U = U^{T}U .
+$$
+which describes, from the reference perspective, how squared lengths are scaled in every direction. 
+A key sanity check is rotational invariance: if the deformation is a pure rigid rotation $F=R$ with $R^{\top} R=I$, then $C=I$ and no strain is detected, matching the physical expectation that rotation alone should not generate internal deformation.
+And as we remove the rotatation, $C$ directly encodes the stretch information via $U$.
+A standard finite-deformation strain measure derived from $C$ is the Green-Lagrange strain:
+
+$$
+E=\frac{1}{2}(C-I),
+$$
+
+which can be interpreted as a normalized change in the reference metric. 
+In the small-deformation regime, writing the displacement 
+as $u(X)=x(X)-X$ leads to $F=I+\nabla_X u$, and the familiar smallstrain tensor appears as
+$$
+\varepsilon=\frac{1}{2}\left(\nabla u+(\nabla u)^{\top}\right) .
+$$
+Here the diagonal entries correspond to relative extension/compression 
+along coordinate directions, while the off-diagonal entries represent shear (angle change). 
+For a CST element, $\nabla u$ is constant within the triangle, 
+hence $\varepsilon$ is also constant-exactly the "constant strain" property.
+
+For a line element aligned with a material basis direction, e.g., 
+$dX = ds e_\ell$, the mapping becomes $dx = ds (F e_\ell)$. 
+This shows that $F e_\ell$ is the deformed direction vector associated 
+with the unit material direction $e_\ell$ 
+(the push-forward of that direction), 
+and it encodes how both the magnitude and orientation of that direction 
+change under deformation.
+In the following we analyze the strain energy density based on these deformed
+direction vectors. Firstly, given the axis directions $\{e_1,e_2,e_3\}$, we will build
+the Energy Density function based on the deformation gradient $F$:
+\begin{equation} 
+  U_k(F)=V_k\left[\frac{\alpha}{2} 
+  \sum_{\ell=1}^3\left(\left\|F e_{\ell}\right\|^2-1\right)^2+\frac{\beta}{2} 
+  \sum_{\ell<m}\left[\left(F e_{\ell}\right) \cdot\left(F e_m\right)\right]^2+
+  \frac{\kappa}{2}(J-1)^2\right]
+\end{equation} 
+Then we will derive a quadratic approximation of this energy density. Now let's explain each term in the energy density function:
+
+\subitem Stretch (length-change) penalty along the basis directions
+
+The term $\sum_{\ell=0}^{2}\big(\lVert F e_\ell\rVert^2 - 1\big)^2$ penalizes deviations of the 
+squared stretch along each basis direction from its reference value. 
+Since $\lVert e_\ell\rVert = 1$ in the reference configuration, $\lVert F e_\ell\rVert$ 
+directly measures the stretch of a unit segment initially aligned with $e_\ell$. T
+he expression $(\lVert F e_\ell\rVert^2 - 1)$ therefore 
+quantifies whether that direction has been elongated or compressed, 
+and squaring it enforces a symmetric penalty for tension and compression while strongly 
+discouraging large departures from the undeformed length.
+
+\subitem Shear / loss of orthogonality penalty via deformed dot products.
+
+The term $\sum_{\ell<m}\big[(F e_\ell)\cdot(F e_m)\big]^2$
+targets changes in the angles between material directions, 
+i.e., shear-like distortions. If ${e_1,e_2,e_3}$ is an orthonormal basis 
+in the reference configuration, then $e_\ell\cdot e_m=0$ for $\ell\neq m$, 
+corresponding to right angles. After deformation, 
+$(F e_\ell)\cdot(F e_m)=\lVert F e_\ell\rVert,\lVert F e_m\rVert\cos\theta_{\ell m}$, 
+so a nonzero dot product indicates a departure from orthogonality. 
+Because the dot product is not normalized, 
+this measure couples angle change with stretch; 
+however, when the stretch deviations are already controlled by the length-penalty term, 
+this contribution effectively acts as a direct penalty on angular distortion (shear).
+
+\subitem  Volumetric penalty and compressibility control.
+
+The volumetric term $\frac{\kappa}{2}(J-1)^2$ with $J=\det F$ 
+penalizes local changes in volume, since (J) is the Jacobian determinant relating differential 
+volumes: $dV_{\text{current}} = J dV_{\text{reference}}$. 
+The constraint $J=1$ corresponds to local volume preservation, 
+while $J>1$ and $J<1$ represent expansion and compression, respectively. 
+The parameter $\kappa$ controls compressibility: 
+increasing it progressively discourages volumetric change and approaches an 
+incompressible response in the limit of very large values.
+
+
+Geometrically, the three vectors $\{F e_1, F e_2, F e_3\}$ 
+can be viewed as the images of three orthonormal material directions forming a local “micro-cell.” 
+The first term constrains how much each of these edges changes length, 
+the second term constrains whether the edges remain orthogonal 
+(thereby suppressing shear and shape distortion), 
+and the third term constrains the volume change of the associated infinitesimal neighborhood. 
+When implemented per element (e.g., per tetrahedron), 
+multiplying the energy density by the element volume $V_k$ 
+converts it into a physically scaled element energy. 
+Finally, these quantities admit a compact expression through the right 
+Cauchy–Green tensor $C = F^\top F$: $(\lVert F e_\ell\rVert^2)$ 
+corresponds to diagonal components of $C$ in the $(e_\ell)$ basis, 
+while $((F e_\ell)\cdot(F e_m))$ corresponds to the off-diagonal components—making 
+the “length + angle” structure explicit.
+
+
 \subsection{Topology for Volumetric Mesh}
 \subsubsection{Intersection Points \& Coefficient Matrix}
 In each tetrahedral element $\mathcal V_k$, we precompute six
@@ -164,23 +403,23 @@ singular value decomposition (SVD), with fallbacks for degenerate or nearly rigi
 
 We start from a registered displacement field $u_i$ defined at each mesh node. 
 The reference position of node $i$ is $x_i$, and its current (deformed) position is $X_i=x_i+u_i$. 
-Inside a tetrahedron with local vertices $0,1,2,3$, 
+Inside a tetrahedron with local vertices $1,2,3,4$, 
 we assume the mapping from reference to deformed configuration is affine:
 
 $$
-X \approx x_0+F\left(x-x_0\right),
+X \approx x_1+F\left(x-x_1\right),
 $$
 where $F \in \mathbb{R}^{3 \times 3}$ is constant over the element. 
-Writing this relation for the three edges attached to vertex 0 gives
+Writing this relation for the three edges attached to vertex 1 gives
 $$
-X_1-X_0 \approx F\left(x_1-x_0\right), \quad X_2-X_0 \approx F\left(x_2-x_0\right), 
-\quad X_3-X_0 \approx F\left(x_3-x_0\right) .
+X_2-X_1 \approx F\left(x_2-x_1\right), \quad X_3-X_1 \approx F\left(x_3-x_1\right), 
+\quad X_4-X_1 \approx F\left(x_4-x_1  \right) .
 $$
 
 
 Collecting these edges into matrices,
 $$
-D_x=\left[x_1-x_0, x_2-x_0, x_3-x_0\right], \quad D_X=\left[X_1-X_0, X_2-X_0, X_3-X_0\right],
+D_x=\left[x_2-x_1, x_3-x_1, x_4-x_1\right], \quad D_X=\left[X_2-X_1, X_3-X_1, X_4-X_1\right],
 $$
 
 we obtain $D_X \approx F D_{\boldsymbol{x}}$, and 
@@ -196,8 +435,8 @@ To extract principal directions as deformation axis, we compute the SVD of the d
 
 $$
 F=U \Sigma V^{\top}, \quad 
-\Sigma=\operatorname{diag}\left(\lambda_0, \lambda_1, \lambda_2\right), \quad 
-\lambda_0 \geq \lambda_1 \geq \lambda_2>0 .
+\Sigma=\operatorname{diag}\left(\lambda_1, \lambda_2, \lambda_3\right), \quad 
+\lambda_1 \geq \lambda_2 \geq \lambda_3>0 .
 $$
 
 
@@ -206,13 +445,13 @@ give the principal stretch directions in the reference configuration.
 We therefore define the anisotropy axes as
 
 $$
-e_0=v_0, \quad e_1=v_1, \quad e_2=v_2,
+e_1=v_1, \quad e_2=v_2, \quad e_3=v_3,
 $$
 
-with $v_0, v_1, v_2$ the columns of $V$. 
+with $v_1, v_2, v_3$ the columns of $V$. 
 To enforce a right-handed local frame we check the orientation of the triad and, 
-if $\left(e_0 \times e_1\right) \cdot e_2<0$, we swap $e_1$ and $e_2$. 
-The singular values $\lambda_0, \lambda_1, \lambda_2$ themselves 
+if $\left(e_1 \times e_2\right) \cdot e_3<0$, we swap $e_2$ and $e_3$. 
+The singular values $\lambda_1, \lambda_2, \lambda_3$ themselves 
 represent the principal stretches along those axes and are also used as indicators of degeneracy.
 
 In practice, the SVD-based construction can become unstable in two situations: 
@@ -222,38 +461,35 @@ or becomes highly anisotropic with $\lambda_2 \ll \lambda_0$,
 the principal directions fluctuate and are no longer physically meaningful. 
 In that case we fall back to a displacement-based frame that is more stable under extreme distortion.
  We first compute the mean nodal displacement in the element,
-$\bar{u}=\frac{1}{4}\left(u_0+u_1+u_2+u_3\right),$
+$\bar{u}=\frac{1}{4}\left(u_1+u_2+u_3+u_4\right),$
 \newline
 which captures the overall trend of motion. If $\|\bar{u}\|$ exceeds a small threshold $\varepsilon$, 
-we set the first axis to follow this dominant direction, $e_0=\bar{u} /\|\bar{u}\|$. 
+we set the first axis to follow this dominant direction, $e_1=\bar{u} /\|\bar{u}\|$. 
 To obtain a second orthogonal direction, we choose a reference edge. 
-For example, $r=x_1-x_0$, project out its component along $e_0$, and normalize:
-
-$$
-e_1=\frac{r-\left(r \cdot e_0\right) e_0}{\left\|r-\left(r \cdot e_0\right) e_0\right\|} .
-$$
-
-This guarantees $e_1 \perp e_0$. 
-The third axis is then defined by the right-hand rule as $e_2= e_0 \times e_1$. 
+For example, $r=x_2-x_1$, project out its component along $e_1$, and normalize via
+$e_2=\frac{r-\left(r \cdot e_1\right) e_1}{\left\|r-\left(r \cdot e_1\right) e_1\right\|} .$
+This guarantees $e_1 \perp e_2$. 
+The third axis is then defined by the right-hand rule as $e_3= e_1 \times e_2$. 
 This displacement-based frame remains well behaved even when the SVD directions become unreliable.
 If the mean displacement is also negligible, $\|\bar{u}\| \leq \varepsilon$, 
 we treat the element as essentially stationary and 
-simply reuse the anisotropy axes computed at the previous time step or iteration instead of inventing a new, noisy orientation.
+simply reuse the anisotropy axes computed at the previous time step or iteration instead of 
+inventing a new, noisy orientation.
 
-The second problematic regime is when the element undergoes nearly rigid motion, 
+The second problem is when the element undergoes nearly rigid motion, 
 with all principal stretches close to one, 
-for example $\left|\lambda_i-1\right|<\varepsilon$ for $i=0,1,2$. 
+for example $\left|\lambda_i-1\right|<\varepsilon$ for $i=1,2,3$. 
 In that case the deformation gradient contains very little stretching, 
 and small numerical differences can cause the SVD directions to 
 drift from step to step even though the material has barely deformed. 
 To avoid spurious re-orientation, we again keep the previously stored 
-axes $\left(e_0, e_1, e_2\right)$ as long as the deformation remains 
+axes $\left(e_1, e_2, e_3\right)$ as long as the deformation remains 
 within this quasi-rigid tolerance, 
 and only recompute them once the singular values deviate significantly from unity.
 
 After this construction, 
 each tetrahedron $\mathcal{V}_k$ carries a right-handed orthonormal 
-frame $\left(e_0, e_1, e_2\right)$ defined in the reference configuration. 
+frame $\left(e_1, e_2, e_3\right)$ defined in the reference configuration. 
 These anisotropy axes are treated as fixed geometric data when we build the intersection
 rays for the volumetric topology and when we later decompose the strain into axial 
 and shear components in the quadratic energy model.
@@ -281,6 +517,9 @@ h_{\mathcal{T}_k} := \arg\min_{h} \| C[k] h - \text{HU}_k \|_2^2
 := \left(C[k]^{\top} C[k]\right)^{-1} C[k]^{\top} \text{HU}_k,
 \]
 given $C[k]$ has full column rank. 
+But in practive, this operatation's result will beyond the normal HU value range.
+So instead, we use the mean value of each tetrahedron's nodal HU values as the barycenter HU value.
+
 \subsection{Simulation: Quadratic SMS Model}
 \subsubsection{Element Energy in Axis Form}
 
@@ -300,16 +539,6 @@ V_k\Bigg[
 \label{eq:sms_energy_axis_form}
 \end{equation}
 where $J:=\det F$ is the Jacobian of the deformation.
-
-Introduce the right Cauchy–Green tensor
-\begin{equation}
-C := F^\top F.
-\end{equation}
-Then
-\[
-\|F e_\ell\|^2 = e_\ell^\top C\,e_\ell, \qquad
-(F e_\ell)\cdot(F e_m) = e_\ell^\top C\,e_m.
-\]
 
 Our goal in this section is twofold:
 \begin{enumerate}
@@ -412,11 +641,9 @@ Squaring and truncating at $O(H^2)$,
 
 Using $\mathrm{tr}\,\varepsilon = \tfrac12\mathrm{tr}(H+H^\top)=\mathrm{tr}H$,
 we obtain the small–strain relation
-\begin{equation}
+$
 (J-1)^2 \approx (\mathrm{tr}\,\varepsilon)^2.
-\end{equation}
-
-\subsubsection{Quadratic energy density}
+$
 
 Plugging the approximations into \eqref{eq:sms_energy_axis_form} and keeping
 only terms up to $O(\|H\|^2)$ yields the strictly quadratic energy density
@@ -427,11 +654,11 @@ w_{\text{quad}}(\varepsilon)
 + \frac{\kappa}{2}\bigl(\mathrm{tr}\,\varepsilon\bigr)^2.
 \label{eq:w_quad_eps}
 \end{equation}
-In a linear (P1) tetrahedral finite element, $\varepsilon$ is constant inside the
+In a linear tetrahedral finite element, $\varepsilon$ is constant inside the
 element, so
-\begin{equation}
+$
 U_k \;\approx\; V_k\,w_{\text{quad}}(\varepsilon_k).
-\end{equation}
+$
 
 \paragraph{Relation to isotropic linear elasticity.}
 Classical small‑strain linear elasticity with Lamé parameters
@@ -444,206 +671,140 @@ w_{\text{FEM}}(\varepsilon) = \mu\,\varepsilon:\varepsilon
 + \frac{\lambda}{2}\bigl(\mathrm{tr}\,\varepsilon\bigr)^2.
 \]
 Comparing with \eqref{eq:w_quad_eps}, we match coefficients via
-\[
-2\alpha = \mu,\qquad 2\beta = 2\mu,\qquad \kappa = \lambda,
-\]
+$
+2\alpha = \mu, 2\beta = 2\mu,\kappa = \lambda,
+$
 so that
-\begin{equation}
-\boxed{
-\alpha = \frac{\mu}{2},\quad
-\beta = \mu,\quad
+$
+\alpha = \frac{\mu}{2},
+\beta = \mu,
 \kappa = \lambda.
-}
-\end{equation}
-For an isotropic material with Young’s modulus $E$ and Poisson ratio
-$\nu$ this becomes
-\[
-\mu = \frac{E}{2(1+\nu)},\qquad
+$
+In practice, an isotropic material with Young’s modulus $E$ and Poisson ratio
+$\nu=0.4$, this becomes $
+\mu = \frac{E}{2(1+\nu)},
 \lambda = \frac{E\nu}{(1+\nu)(1-2\nu)}.
-\]
+$
 
-\subsection{Broadcast Strain to Nodal Displacements}
+\subsubsection{Broadcast Strain to Nodal Displacements}
 Based on previous topology and derivations, 
 we now express the strain components to the nodes' displacements.
 For each element $k$ with local vertex displacements
-$\{u_0,u_1,u_2,u_3\}$, stack them as
+$\{u_1,u_2,u_3,u_4\}$, stack them as
 $u_e
 =
-[u_0^x,u_0^y,u_0^z,\;
-u_1^x,u_1^y,u_1^z,\;
+[u_1^x,u_1^y,u_1^z,\;
 u_2^x,u_2^y,u_2^z,\;
-u_3^x,u_3^y,u_3^z
+u_3^x,u_3^y,u_3^z,\;
+u_4^x,u_4^y,u_4^z
 ]^\top
-\in\R^{12}. $
+\in\R^{12}. $ So that we can assemble a linear solver to obtain the displacements with:
+$$
+u^{\top} K u = f^{\top} u.
+$$
+For a single tetrahedral element $k$ with reference vertices $X_1,X_2,X_3,X_4\in\mathbb{R}^3$
+and nodal displacement vectors $u_1,u_2,u_3,u_4\in\mathbb{R}^3$, 
+we stack the element degrees of freedom as 
+$u_e=[u_1^\top,u_2^\top,u_3^\top,u_4^\top]^\top\in\mathbb{R}^{12}$. 
+The material axis is represented by three unit directions 
+$e_1,e_2,e_3\in\mathbb{R}^3$ with $\lVert e_\ell\rVert=1$. 
+Our goal is to express three approximated strain-related scalar quantities—axial, shear, 
+and volumetric (trace)—in a unified linear form scalar equal to $r u_e$, 
+which later yields a rank-one decomposition of the element stiffness.
 
-Any \emph{linear scalar measurement} of the displacement inside this element can
-be written as$\text{lsm} = r\,u_e,$ where $r\in\R^{1\times12}$ is a row vector. 
-We construct three sets of such measurements for approximation:
-\begin{itemize}
-  \item axial strain components $\varepsilon_{\ell\ell}$,
-  \item shear strain components $\varepsilon_{\ell m}$ for $\ell\neq m$,
-  \item the trace $\mathrm{tr}\,\varepsilon$ (via relative volume change).
-\end{itemize}
+To define directional measurements within the element, 
+for each axis $\ell\in{1,2,3}$ we select two reference sampling points 
+$p_\ell^{(1)}$ and $p_\ell^{(2)}$ inside the tetrahedron. 
+For notational uniformity, we relabel these six points as $p_{2\ell-1}=p_\ell^{(1)}$
+and $p_{2\ell}=p_\ell^{(2)}$. 
+We use the previously defined barycentric coefficient matrix $C^k_{ij}$,
+so that each sampling point $p_j$ is expressed by the reference vertices as 
+$p_j=\sum_{i=1}^4 C^k_{ij}X_i$. 
+Under standard linear interpolation of displacement within the tetrahedron, 
+the displacement at that point is $u(p_j)=\sum_{i=1}^4 C^k_{ij}u_i$. 
+It allows every directional difference of 
+displacement to be written as a fixed linear combination of nodal unknowns.
 
-\subsubsection{Axial strain $\varepsilon_{\ell\ell}$}
+For axial item along axis $\ell$, we define the per-vertex difference coefficients 
+$s^k_{\ell i}=C^k_{i,2\ell}-C^k_{i,2\ell-1}$ for $i=1,2,3,4$. 
+The displacement difference across the sampled segment on axis $\ell$ is then 
+$\Delta u_\ell=u(p_{2\ell})-u(p_{2\ell-1})=\sum_{i=1}^4 s^k_{\ell i}u_i$. 
+Let the reference segment length be $\ell_\ell^0=\lVert p_{2\ell}-p_{2\ell-1}\rVert$. 
+Under the small-strain approximation, 
+the axial strain component along $e_\ell$ is modeled by the directional derivative 
+projected onto the same axis, 
+$\varepsilon_{\ell\ell}\approx (e_\ell^\top\Delta u_\ell)/\ell_\ell^0$. 
+Expanding in nodal unknowns gives 
+$\varepsilon_{\ell\ell}=\sum_{i=1}^4 (s^k_{\ell i}/\ell_\ell^0)e_\ell^\top u_i$. 
+This defines a row vector $r_{\ell\ell}\in\mathbb{R}^{1\times 12}$ 
+by setting the $i$-th $(1\times 3)$ block to 
+$r_{\ell\ell}^{(i)}=(s^k_{\ell i}/\ell_\ell^0)e_\ell^\top$, 
+and concatenating across vertices. With this construction, each axial component is written as 
+$\varepsilon_{\ell\ell}=r_{\ell\ell}u_e$ for $\ell=1,2,3$.
 
-For axis $\ell\in\{0,1,2\}$ choose two points in the reference element,
-$p_\ell^{(1)}$ and $p_\ell^{(2)}$, lying on the line parallel to $e_\ell$
-(typically the precomputed anisotropy–axis intersections inside the tet).
-Express these points in barycentric coordinates:
-\begin{equation*}
-p = \sum_{a=0}^3 C_k[a,\text{pt}]\,X_a,\qquad
-\text{pt}\in\{p_\ell^{(1)},p_\ell^{(2)}\},
-\end{equation*}
-where $C_k[a,\text{pt}]$ are the barycentric coefficients with respect to tet
-$k$.
+For shear, we represent the off-diagonal small-strain components in the axis basis. 
+In the form of standard strain tensor $\varepsilon=\tfrac12(\nabla u + (\nabla u)^\top)$, 
+the shear component associated with axes 
+$\ell\neq m$ can be written as 
+$\varepsilon_{\ell m}=\tfrac12\big(e_\ell^\top(\nabla u)e_m + e_m^\top(\nabla u)e_\ell\big)$. 
+We approximate the directional derivatives using the same two-point differences: 
+$e_m^\top(\nabla u)e_\ell\approx e_m^\top\Delta u_\ell/\ell_\ell^0$
+and $e_\ell^\top(\nabla u)e_m\approx e_\ell^\top\Delta u_m/\ell_m^0$. 
+Substituting these approximations yields 
+$\varepsilon_{\ell m}\approx \tfrac12\big(e_m^\top\Delta u_\ell/\ell_\ell^0 + e_\ell^\top\Delta u_m/\ell_m^0\big)$. 
+Using $\Delta u_\ell=\sum_i s^k_{\ell i}u_i$ and 
+$\Delta u_m=\sum_i s^k_{m i}u_i$, the contribution of vertex $i$
+becomes a $1\times 3$ block $r_{\ell m}^{(i)}=\tfrac12\big((s^k_{\ell i}/\ell_\ell^0)e_m^\top + (s^k_{m i}/\ell_m^0)e_\ell^\top\big)$. 
+Concatenating these blocks defines $r_{\ell m}\in\mathbb{R}^{1\times 12}$ 
+such that $\varepsilon_{\ell m}=r_{\ell m}u_e$. 
+Since $\varepsilon_{\ell m}=\varepsilon_{m\ell}$, we can enumerate pairs within $1\le \ell<m\le 3$.
 
-The linear displacement interpolation gives
-\begin{equation*}
-u(p) = \sum_{a=0}^3 C_k[a,\text{pt}]\,u_a.
-\end{equation*}
-Define $s_\ell[a] := C_k[a,p_\ell^{(2)}] - C_k[a,p_\ell^{(1)}], 
-\Delta u_\ell := \sum_{a=0}^3 s_\ell[a]\,u_a,$
-and the reference segment length $ \ell_\ell^0 := \bigl\|p_\ell^{(2)} - p_\ell^{(1)}\bigr\|.$
-For small strains, the axial strain along $e_\ell$ is approximated by
-\begin{equation*}
-\varepsilon_{\ell\ell}
-\;\approx\;
-\frac{e_\ell^\top \Delta u_\ell}{\ell_\ell^0}.
-\end{equation*}
-Writing this as a linear form $\text{lsm}_{\ell\ell}=r_{\ell\ell}u_e$ we obtain
-the nodal blocks$r_{\ell\ell}^{(a)} = \frac{s_\ell[a]}{\ell_\ell^0}\,e_\ell^\top
-\in\R^{1\times3},$
-so that
-\begin{equation}
-r_{\ell\ell} =
-\bigl[\,r_{\ell\ell}^{(0)}\; r_{\ell\ell}^{(1)}\; r_{\ell\ell}^{(2)}\; r_{\ell\ell}^{(3)}\,\bigr]
-\in\R^{1\times12}.
-\end{equation}
+For the volumetric (trace) component, 
+we use the fact that under small deformation the relative volume change of a tetrahedron 
+equals the trace of the infinitesimal strain to first order. 
+The reference volume of element $k$ can be written as 
+$V_k=\tfrac16 (X_2-X_1)\cdot((X_3-X_1)\times(X_4-X_1))$. 
+The first-order volume variation takes the linear form $\Delta V_k=\sum_{i=1}^4 g_i\cdot u_i$ 
+with constant vectors $g_i\in\mathbb{R}^3$ determined solely by the reference geometry:
+$
+g_1=\frac{(X_2-X_3)\times (X_4-X_3)}{6},
+g_2=\frac{(X_3-X_1)\times (X_4-X_1)}{6},
+g_3=\frac{(X_1-X_2)\times (X_4-X_2)}{6},
+g_4=\frac{(X_1-X_3)\times (X_2-X_3)}{6}.
+$
 
-\subsubsection{Shear strain $\varepsilon_{\ell m}$, $\ell\neq m$}
+Then the relative volume change becomes $\Delta V_k/V_k=\sum_{i=1}^4 (g_i/V_k)\cdot u_i$. 
+Defining $r_{\mathrm{vol}}^{(i)}=(g_i/V_k)^\top\in\mathbb{R}^{1\times 3}$ and 
+concatenating across vertices gives $r_{\mathrm{vol}}\in\mathbb{R}^{1\times 12}$ 
+such that $\Delta V_k/V_k=r_{\mathrm{vol}}u_e$. 
+In the small-strain regime, we then use the classical first-order identity 
+$\operatorname{tr}\varepsilon\approx \Delta V_k/V_k$, 
+hence $\operatorname{tr}\varepsilon\approx r_{\mathrm{vol}}u_e$.
 
-By definition, $\varepsilon_{\ell m} =
-\tfrac12\bigl(e_\ell^\top \nabla u\,e_m + e_m^\top \nabla u\,e_\ell\bigr).$
-Using the same axial segments as above, we approximate the directional
-derivatives via finite differences:
-\begin{equation*}
-e_m^\top \nabla u\,e_\ell
-\;\approx\;
-\frac{e_m^\top \Delta u_\ell}{\ell_\ell^0},
-\qquad
-e_\ell^\top \nabla u\,e_m
-\;\approx\;
-\frac{e_\ell^\top \Delta u_m}{\ell_m^0}.
-\end{equation*}
-Hence
-\begin{equation*}
-\varepsilon_{\ell m}
-\;\approx\;
-\tfrac12\left(
-\frac{e_m^\top \Delta u_\ell}{\ell_\ell^0}
-+
-\frac{e_\ell^\top \Delta u_m}{\ell_m^0}
-\right)
-=: \text{lsm}_{\ell m} = r_{\ell m}u_e.
-\end{equation*}
-The nodal blocks of $r_{\ell m}$ are
-$r_{\ell m}^{(a)}
-=
-\tfrac12\left(
-\frac{s_\ell[a]}{\ell_\ell^0}\,e_m^\top
-+
-\frac{s_m[a]}{\ell_m^0}\,e_\ell^\top
-\right)\in\R^{1\times3}$
-assembled into
-\begin{equation}
-r_{\ell m}
-=
-\bigl[\,r_{\ell m}^{(0)}\; r_{\ell m}^{(1)}\; r_{\ell m}^{(2)}\; r_{\ell m}^{(3)}\,\bigr]
-\in\R^{1\times12}.
-\end{equation}
-
-\subsubsection{Trace $\mathrm{tr}\,\varepsilon$ via volume change}
-
-For a linear tetrahedron, the first–order change in volume is
-$\delta V_k = \sum_{a=0}^3 g_a\cdot u_a,$
-where $g_a\in\R^3$ are the \emph{volume gradients} in the reference
-configuration:
-\begin{align*}
-g_0 = \frac{(X_1-X_2)\times(X_3-X_2)}{6},
-g_1 = \frac{(X_2-X_0)\times(X_3-X_0)}{6},\\
-g_2 = \frac{(X_0-X_1)\times(X_3-X_1)}{6},
-g_3 = \frac{(X_0-X_2)\times(X_1-X_2)}{6}.
-\end{align*}
-The relative volume change is
-\begin{equation}
-\frac{\delta V_k}{V_k}
-=
-\sum_{a=0}^3 \frac{g_a}{V_k}\cdot u_a
-= r_{\mathrm{vol}} u_e,
-\end{equation}
-with blocks
-\begin{equation}
-r_{\mathrm{vol}}^{(a)} = \left(\frac{g_a}{V_k}\right)^\top \in\R^{1\times3},
-\qquad
-r_{\mathrm{vol}}
-=
-\bigl[\,r_{\mathrm{vol}}^{(0)}\; r_{\mathrm{vol}}^{(1)}\; r_{\mathrm{vol}}^{(2)}\; r_{\mathrm{vol}}^{(3)}\,\bigr].
-\end{equation}
-For small strains, $\delta V_k/V_k\approx\mathrm{tr}\,\varepsilon$, so this
-measurement corresponds to the trace component.
-
-\paragraph{Summary.}
-For each element $k$ we have:
-\begin{itemize}
-  \item three axial measurement rows $r_{\ell\ell}[k]\in\R^{1\times12}$,
-  \item three shear measurement rows $r_{\ell m}[k]\in\R^{1\times12}$ with
-  $0\le\ell<m\le2$,
-  \item one volumetric row $r_{\mathrm{vol}}[k]\in\R^{1\times12}$,
-\end{itemize}
-all expressing the strain components as \emph{linear} functions of the local
-nodal displacements $u_e$.
-
-\subsubsection{From Quadratic Energy to Element Stiffness}
-
-Using the linear measurements above, the quadratic element energy
-\eqref{eq:w_quad_eps} can be written as
-\begin{equation}
-U_k(u_e)
-=
-\sum_{\ell}(2\alpha V_k)\,\text{lsm}_{\ell\ell}^2
-+
-\sum_{\ell<m}(2\beta V_k)\,\text{lsm}_{\ell m}^2
-+
-\Bigl(\tfrac{\kappa}{2}V_k\Bigr)\,\text{lsm}_{\mathrm{vol}}^2
-=
-\tfrac12\,u_e^\top K_k\,u_e.
-\end{equation}
-Since each $\text{lsm}=r\,u_e$ is linear, we have
-\begin{equation*}
-\text{lsm}^2 = (r\,u_e)^2 = u_e^\top(r^\top r)\,u_e.
-\end{equation*}
-A generic term $c\,\text{lsm}^2$ therefore contributes
-\begin{equation*}
-K_k \;\mathrel{+}= 2c\,r^\top r.
-\end{equation*}
-Substituting $c=2\alpha V_k$, $2\beta V_k$, and $\tfrac{\kappa}{2}V_k$ for the
-axial, shear, and volumetric terms yields
+With these linear scalar forms, 
+we define a quadratic element energy that penalizes axial, shear, and volumetric deformation modes. 
+Using the convention that each measured scalar takes the form $(r u_e)$, 
+the element energy is written as a weighted sum of squared scalars:
+$$
+U_k(u_e)=\sum_{\ell=1}^3 (2\alpha V_k)(r_{\ell\ell}u_e)^2
++\sum_{1\le \ell<m\le 3} (2\beta V_k)(r_{\ell m}u_e)^2
++\left(\frac{\kappa}{2}V_k\right)(r_{\mathrm{vol}}u_e)^2.
+$$
+Using the identity $(r u_e)^2 = u_e^\top(r^\top r)u_e$ and 
+matching the standard quadratic form $U_k(u_e)=\tfrac12 u_e^\top K_k u_e$, 
+the element stiffness admits a sum of rank-one outer products:
 \begin{equation}
 \boxed{
-\begin{aligned}
-K_k \ \mathrel{+}&=\ \sum_{\ell=0}^{2}\bigl(4\alpha V_k\bigr)\,r_{\ell\ell}^\top r_{\ell\ell}\\[0.3em]
-&\quad+\ \sum_{0\le\ell<m\le2}\bigl(4\beta V_k\bigr)\,r_{\ell m}^\top r_{\ell m}\\[0.3em]
-&\quad+\ \bigl(\kappa V_k\bigr)\,r_{\mathrm{vol}}^\top r_{\mathrm{vol}}.
-\end{aligned}
+  K_k
+=\sum_{\ell=1}^3 (4\alpha V_k)r_{\ell\ell}^\top r_{\ell\ell}
++\sum_{1\le \ell<m\le 3} (4\beta V_k)r_{\ell m}^\top r_{\ell m}
++(\kappa V_k)r_{\mathrm{vol}}^\top r_{\mathrm{vol}}.
 }
-\label{eq:element_K_accum}
 \end{equation}
+This decomposition makes the assembly and interpretation transparent: 
+each axial/shear/volumetric measurement contributes a positive semidefinite rank-one update to $K_k$, 
+scaled by the element volume and the corresponding material weights.
 
-Assembling $K_k$ over all elements using the standard local–to–global DOF map
-and restricting to the free (non–Dirichlet) DOFs yields the global symmetric
-positive semidefinite stiffness matrix $K$ (positive definite once rigid modes
-are removed).
 
 \subsubsection{Static Equilibrium with Boundary Conditions}
 
@@ -657,493 +818,330 @@ model the internal force is $f_{\mathrm{int}} = Ku$, so the RHS $f_F$ contains
 only body forces and tractions.
 
 \paragraph{Body forces (gravity).}
-In $(\mathrm{kg},\mathrm{mm},\mathrm{s})$ units, let
-\[
+In $(\mathrm{kg},\mathrm{mm},\mathrm{s})$ units, set
+$
 g = (0,-9810,0)^\top\;\mathrm{mm/s^2}.
-\]
+$
 Given nodal masses $m_i$ (obtained in preprocessing from the element volumes and
 density), we add to each free node $i$:
-\begin{equation*}
+$
 f_F^{(i)} \mathrel{+}= m_i\,g.
-\end{equation*}
-
-\paragraph{Surface traction/pressure.}
-For boundary triangles with prescribed traction or pressure, we perform
-numerical integration on the reference triangle, distribute the resulting force
-to its three vertices, and then map these contributions to the corresponding
-entries in $f_F$ using the free–DOF map.
+$
 
 \paragraph{Dirichlet DOFs.}
 Dirichlet boundary conditions (e.g. prescribed displacements from image
 registration) are handled by \emph{removing} the constrained DOFs from the
-system:
-\begin{itemize}
-  \item We fix the boundary nodal positions directly as $X_i = x_i + u^{\mathrm{bc}}_i$.
-  \item We build a compressed DOF map that omits these constrained entries.
-\end{itemize}
+system. This involves two steps: Fixing the boundary nodal positions directly as $X_i = x_i + u^{\mathrm{bc}}_i$
+, then building a compressed DOF map that omits these constrained entries.
 In this setup we do \emph{not} need to add correction terms of the form
 $-K_{FD}u_D$ to the RHS, because the system is formed directly on the free DOFs.
 
-
-\subsection{Inverse Problem}
-We cast the estimation of material parameters as a PDE-constrained inverse problem 
-built on top of the forward SMS model described above. 
-The unknowns are elementwise stiffness parameters $\left\{\alpha_k\right\}_{k=1}^M$; 
-the other SMS coefficients $\beta_k$ and $\kappa_k$ are not treated as independent, 
-but tied to $\alpha_k$ through simple constitutive relations that encode the chosen Poisson ratio $\nu=0.4$, 
-for example $\beta_k=2 \alpha_k$ and $\kappa_k=\frac{4 \nu}{1-2 \nu} \alpha_k$. 
-With this parameterization the global stiffness matrix assembled in Section 2.3 is written as $K(\alpha)$, 
-and the forward displacement field $u^{\star}(\alpha)$ is defined implicitly as the solution of the linear system
+\subsection{Inverse Problem(new)}
+The overall inverse problem is to estimate a spatially varying stiffness 
+field $\left\{\alpha_k\right\}_{k=1}^M$ from observed displacements $u_{\text {obs }}$ 
+obtained via image registration. The remaining SMS coefficients are parameterized 
+by $\alpha_k$ through constitutive relations with a fixed Poisson ratio $\nu$; 
+for example, $\beta_k=2 \alpha_k$ and $\kappa_k=\frac{4 \nu}{1-2 \nu} \alpha_k$ 
+with $\nu=0.4$. Under this parameterization, the assembled global stiffness matrix 
+is denoted by $K(\alpha)$, and the simulated displacement field $u^{\star}(\alpha)$ is 
+defined implicitly as the solution of the quasi-static force balance
 
 $$
 K(\alpha) u^{\star}=b,
 $$
 
-where $b$ collects the external forces (gravity and tractions) on the free degrees of freedom. 
-The target we want to match is an observed displacement field $u_{\text {obs }}$ 
-obtained from image registration and restricted to the same set of free DOFs.
-
-The data term in our objective is a relative $\ell_2$ loss between simulated deformation $u^\star$ 
-and observed displacements $u_{\text {obs}}$ from CT images:
+where $b$ collects external forces and the contributions induced by boundary conditions. 
+We then seek $\alpha$ such that the equilibrium displacement matches the observed motion 
+while remaining spatially regular. The constrained inverse problem is written as
 
 $$
-\mathcal{L}_{\text {data }}\left(u^{\star}\right)=\frac{\left\|u^{\star}-u_{\text {obs }}\right\|_2^2}{\left\|u_{\text {obs }}\right\|_2^2},
+\min _{\alpha, u} \mathcal{L}_{\text {data }}(u)+\omega_1 R_u(u)+\omega_2 R_\alpha(\alpha) \quad \text { s.t. } \quad K(\alpha) u=b,
 $$
-To avoid overfitting and to encode prior knowledge about spatial smoothness, 
-we add regularization on both the simulated displacement and the parameter field. 
-For the displacement we use a Charbonnier-smoothed total-variation penalty on the deformation gradient $\nabla u^{\star}$ : 
-on each element $T_k$ the gradient $\nabla u_{T_k}^{\star}$ is constant
-and we penalize $\sqrt{\left\|\nabla u_{T_k}^{\star}\right\|_F^2+\varepsilon^2}$
-weighted by the element volume, which is the standard isotropic TV functional for a vector field\cite{vogel2002computational}.
-For the parameter field we use a log-TV-style regularizer on $\alpha$ \cite{feng2022visual}: 
-on each tetrahedron the linear-FE gradient $\nabla_{T_k} \alpha$ 
-is combined with an elementwise average $\bar{\alpha}_k$ in a scale-invariant term of the form
+
+where $\mathcal{L}_{\text {data }}$ measures the simulation-observation misfit, 
+$R_u$ regularizes the deformation, and $R_\alpha$ enforces spatial 
+coherence of the stiffness field. The weights $\omega_1, \omega_2$ balance the influence 
+of each regularizer.
+Enforcing equilibrium through $u^{\star}(\alpha)$, 
+we consider the reduced objective 
+$\mathcal{J}(\alpha)=\mathcal{L}\left(u^{\star}(\alpha), \alpha\right)$. 
+We use a normalized (relative) quadratic data term
+
 $$
-R(\alpha) \approx \sum_{k=1}^M V_k \sqrt{\frac{\left\|\nabla_{T_k} \alpha\right\|^2}{\left(\bar{\alpha}_k+c_{\mathrm{div}}\right)^2}+\varepsilon_{\mathrm{reg}}^2},
+\mathcal{L}_{\mathrm{data}}\left(u^{\star}\right)=\frac{\left\|u^{\star}-
+u_{\mathrm{obs}}\right\|_2^2}{c_{\mathrm{rel}}}, \quad c_{\mathrm{rel}}=
+\left\|u_{\mathrm{obs}}\right\|_2^2+\left(\epsilon_{\mathrm{rel}}\left\|u_{\mathrm{obs}}\right\|_2\right)^2,
 $$
-Here we gives the full inverse problem formulation:
+
+So the full objective is
+
+$$
+\mathcal{L}\left(u^{\star}, \alpha\right)=\mathcal{L}_{\text {data }}\left(u^{\star}\right)+\omega_1 R_u\left(u^{\star}\right)+\omega_2 R_\alpha(\alpha) .
+$$
 
 
-\subsubsection{Regularizations on parameters $\alpha$ and displacement field $u$}
+Regularization terms with elementwise gradients
+To regularize the displacement field, 
+we penalize the elementwise displacement gradient $\nabla_{T_k} u^{\star}$, 
+which is constant on each linear tetrahedron $T_k$. Using a Charbonnier (smoothed TV) form, 
+we define
 
-We regularize two quantities: the simulated displacement field $u_{\text{sim}}$
-(via its gradient) and the material parameter field $\alpha$. The goal is to
-stabilize the inverse problem and encode prior beliefs about smoothness without
-destroying edges or heterogeneities that are actually supported by the data.
+$$
+R_u\left(u^{\star}\right)=\sum_{k=1}^M V_k \sqrt{\left\|\nabla_{T_k} u^{\star}\right\|_F^2+\varepsilon^2},
+$$
 
-\paragraph{Regularizing $u_{\text{sim}}$ via the deformation gradient.}
+where $V_k$ is the reference volume of $T_k,\|\cdot\|_F$ is the Frobenius norm.
+For the stiffness field, we impose spatial smoothness via 
+an analogous Charbonnier-type penalty on the FE gradient 
+$\nabla_{T_k} \alpha$. Writing $\bar{\alpha}_k$ for each tetra's barycentric average of 
+$\alpha$ over $T_k$, we use
 
-We work with the standard continuum picture of a deformation
-\begin{equation*}
-  x = \chi(X) = X + u(X),
-\end{equation*}
-where $X$ are material coordinates, $x$ are spatial coordinates, and $u(X)$ is
-the displacement field. The deformation gradient is the Jacobian of $\chi$,
-\begin{equation}
-  F(X) = \frac{\partial \chi}{\partial X}(X) = \nabla_X x(X).
-\end{equation}
-Substituting $x = X + u(X)$ shows that
-\begin{equation*}
-  F(X) = \frac{\partial}{\partial X}(X+u(X)) = I + \nabla_X u(X),
-\end{equation*}
-so the deviation of $F$ from the identity is exactly the displacement
-gradient,
-\begin{equation*}
-  F - I = \nabla_X u, \qquad \delta F = \nabla_X(\delta u).
-\end{equation*}
-Any penalty on changes of $F$ is therefore a penalty on $\nabla u$ (or on the
-gradient of updates $\nabla\,\delta u$).
+$$
+R_\alpha(\alpha)=\sum_{k=1}^M V_k \sqrt{\frac{\left\|\nabla_{T_k} \alpha\right\|_2^2}{\left(\bar{\alpha}_k+\frac{1}{2} \varepsilon_{\mathrm{div}}\right)^2}+\varepsilon_{\mathrm{reg}}^2},
+$$
 
-On a linear tetrahedral mesh the mapping $\chi$ is affine in each element.
-For a tet with reference (material) vertices $X_1,\dots,X_4$ and current
-(spatial) vertices $x_1,\dots,x_4$, any point can be written using
-edge–basis coordinates $\zeta\in\R^3$ as
-\begin{equation}
-  X = X_1 + D_m \zeta,\qquad
-  x = x_1 + D_s \zeta,
-\end{equation}
-with edge matrices
-\begin{equation*}
-  D_m = \bigl[\,X_2 - X_1\;\; X_3 - X_1\;\; X_4 - X_1\,\bigr],\qquad
-  D_s = \bigl[\,x_2 - x_1\;\; x_3 - x_1\;\; x_4 - x_1\,\bigr].
-\end{equation*}
-Differentiating and applying the chain rule gives
-\begin{equation*}
-  \frac{\partial x}{\partial X}
-  = \frac{\partial x}{\partial \zeta}\,\frac{\partial \zeta}{\partial X}
-  = D_s D_m^{-1},
-\end{equation*}
-so for a non‑degenerate linear tet the deformation gradient is
-\begin{equation*}
-  F = D_s D_m^{-1}.
-\end{equation*}
+where $\varepsilon_{\text {div }}>0$ prevents division by very small 
+$\bar{\alpha}_k$ and $\varepsilon_{\text {reg }}>0$ provides Charbonnier smoothing. 
+This construction encourages spatial coherence while remaining robust to 
+sharp transitions (e.g., across heterogeneous regions).
+\newline
+Because $u^{\star}(\alpha)$ is defined implicitly by the equilibrium equation, 
+differentiating $\mathcal{J}(\alpha)$ directly would require differentiating 
+the solution map $\alpha \mapsto u^{\star}(\alpha)$. 
+Instead, we apply the adjoint-state method. First, the derivative of the data term with 
+respect to $u^{\star}$ is
 
-The same expression can be written in terms of FE shape functions $N_a$:
-\begin{equation}
-  F = \sum_{a=1}^4 x_a \otimes \nabla_X N_a
-    = I + \sum_{a=1}^4 u_a \otimes \nabla_X N_a
-    = I + \nabla_X u,
-\end{equation}
-where the gradients $\nabla_X N_a$ are constant on the element. Using local
-coordinates $X = X_1 + D_m \zeta$ and
-\begin{equation*}
-  N_2 = \zeta_1,\quad
-  N_3 = \zeta_2,\quad
-  N_4 = \zeta_3,\quad
-  N_1 = 1-\zeta_1-\zeta_2-\zeta_3,
-\end{equation*}
-we have $\partial\zeta/\partial X = D_m^{-1}$ and hence
-\begin{equation*}
-  \nabla N_2 = D_m^{-T} e_1,\quad
-  \nabla N_3 = D_m^{-T} e_2,\quad
-  \nabla N_4 = D_m^{-T} e_3,\quad
-  \nabla N_1 = -(\nabla N_2 + \nabla N_3 + \nabla N_4),
-\end{equation*}
-where $e_i$ are the standard basis vectors in $\R^3$. The element volume is
-$V = \tfrac16\det(D_m)$.
+$$
+\frac{\partial \mathcal{L}_{\text {data }}}{\partial u^{\star}}=\frac{2}{c_{\mathrm{rel}}}\left(u^{\star}-u_{\mathrm{obs}}\right),
+$$
 
-Let the simulated displacement on the free DOFs be
-$u_{\text{sim}}\in\R^{3N_f}$. On a tet $T_k$ with local nodes $a=1,\dots,4$,
-the element displacement gradient is
-\begin{equation}
-  \nabla u_{\text{sim},T_k}
-  = \sum_{a=1}^4 u_a \otimes \nabla N_a^{(k)} \in \R^{3\times3},
-\end{equation}
-where $u_a\in\R^3$ is the displacement of local node $a$.
+and the total partial derivative of $\mathcal{L}$ with respect to $u^{\star}$ is
 
-We use an isotropic TV‑type regularizer with Charbonnier smoothing on the
-deformation gradient:
-\begin{equation}
-  R_u(u_{\text{sim}})
-  = \sum_{k=1}^M
-    V_k \sqrt{\|\nabla u_{\text{sim},T_k}\|_F^2 + \varepsilon^2},
-\end{equation}
-where $\|\cdot\|_F$ is the Frobenius norm, $V_k$ is the element volume, and
-$\varepsilon>0$ smooths the square root. Because this norm is rotationally
-invariant in $\R^3$, the penalty is isotropic in $u$: it does not privilege
-any coordinate direction or component.
+$$
+\frac{\partial \mathcal{L}}{\partial u^{\star}}=\frac{2}{c_{\mathrm{rel}}}\left(u^{\star}-u_{\mathrm{obs}}\right)+\omega_1 \frac{\partial R_u}{\partial u^{\star}} .
+$$
 
-To compute $\partial R_u/\partial u_{\text{sim}}$, introduce the element
-vector
-\begin{equation*}
-  u_e = \begin{bmatrix}
-    u_1^\top & u_2^\top & u_3^\top & u_4^\top
-  \end{bmatrix}^\top \in\R^{12},
-\end{equation*}
-and the $3\times4$ matrix of shape‑function gradients
-\begin{equation*}
-  B_k = \bigl[\,\nabla N_1^{(k)}\;\; \nabla N_2^{(k)}\;\;
-              \nabla N_3^{(k)}\;\; \nabla N_4^{(k)}\,\bigr].
-\end{equation*}
-Then
-\begin{equation*}
-  \nabla u_{\text{sim},T_k} = [u_1\;u_2\;u_3\;u_4]\,B_k^\top.
-\end{equation*}
-Vectorizing the $3\times3$ gradient (stacking columns) gives
-\begin{equation*}
-  \operatorname{vec}(\nabla u_{\text{sim},T_k})
-  = G_k u_e,\qquad
-  G_k := B_k \otimes I_3 \in\R^{9\times12},
-\end{equation*}
-with $\otimes$ the Kronecker product and $I_3$ the $3\times3$ identity.
 
-Let $P_k\in\R^{12\times 3N_f}$ gather from $u_{\text{sim}}$ the 12 DOFs
-belonging to $T_k$. Stacking all elements yields the global sparse operator
-\begin{equation}
-  G =
-  \begin{bmatrix}
-    G_1 P_1 \\
-    \vdots  \\
-    G_M P_M
-  \end{bmatrix}
-  \in \R^{9M\times 3N_f},\qquad
-  \operatorname{vec}(\nabla u_{\text{sim}}) = G u_{\text{sim}}.
-\end{equation}
+We define the Lagrangian
 
-For one element we may write
-\begin{equation*}
-  R_k(u_{\text{sim}})
-  = V_k\sqrt{\|S_k\|_F^2 + \varepsilon^2},
-  \qquad S_k := \nabla u_{\text{sim},T_k}.
-\end{equation*}
-Define $R(S) = \sqrt{\operatorname{tr}(S^\top S)+\varepsilon^2}$. A standard
-matrix‑calculus computation gives
-\begin{equation}
-  \frac{\partial R}{\partial S}
-  = \frac{S}{\sqrt{\operatorname{tr}(S^\top S)+\varepsilon^2}}.
-\end{equation}
-Using $\operatorname{vec}(S_k) = G_k u_e$ and
-$\operatorname{tr}(A^\top B)=\operatorname{vec}(A)^\top \operatorname{vec}(B)$,
-we obtain, after assembling over all elements,
-\begin{equation*}
-  \frac{\partial R_u}{\partial u_{\text{sim}}}
-  = G^\top W(u_{\text{sim}})\,G u_{\text{sim}},
-\end{equation*}
-where $W(u_{\text{sim}})$ is block‑diagonal with $k$‑th $9\times9$ block
-\begin{equation*}
-  W_k = \frac{V_k}{\sqrt{\|S_k\|_F^2 + \varepsilon^2}}\,I_9.
-\end{equation*}
-\paragraph{Log‑TV regularization on the stiffness parameter $\alpha$.}
+$$
+\Phi\left(u^{\star}, \alpha, \lambda\right)=\mathcal{L}_{\text {data }}\left(u^{\star}\right)+\omega_1 R_u\left(u^{\star}\right)+\omega_2 R_\alpha(\alpha)-\lambda^{\top}\left(K(\alpha) u^{\star}-b\right),
+$$
 
-The continuum regularization on the shear modulus $\mu$ is
-\begin{equation}
-  R(\mu)
-  = \int_\Omega
-    \sqrt{
-      \frac{\|\nabla\mu\|^2}{(\mu+\varepsilon_{\text{div}})^2}
-      + \varepsilon_{\text{reg}}^2
-    }\;dV,
-\end{equation}
-with $\varepsilon_{\text{div}}$ preventing division by very small $\mu$ and
-$\varepsilon_{\text{reg}}$ smoothing the square root. Substituting $\mu =
-2\alpha$ gives
-\begin{equation*}
-  \frac{\|\nabla\mu\|^2}{(\mu+\varepsilon_{\text{div}})^2}
-  = \frac{4\|\nabla\alpha\|^2}{(2\alpha+\varepsilon_{\text{div}})^2}
-  = \frac{\|\nabla\alpha\|^2}{(\alpha+\tfrac12\varepsilon_{\text{div}})^2},
-\end{equation*}
-so the same functional expressed in $\alpha$ is
-\begin{equation}
-  R_\alpha(\alpha)
-  = \int_\Omega
-    \sqrt{
-      \frac{\|\nabla\alpha\|^2}{(\alpha+\tfrac12\varepsilon_{\text{div}})^2}
-      + \varepsilon_{\text{reg}}^2
-    }\;dV.
-\end{equation}
+where $\lambda$ is the adjoint vector.
+\newline 
+The adjoint equation w.r.t. $u^{\star}$ is:
 
-On the tetrahedral mesh, with linear FE shape functions, the gradient
-$\nabla_{T_k}\alpha$ is constant on each tet:
-\begin{equation*}
-  \nabla_{T_k}\alpha
-  = \sum_{i=1}^4 \alpha_i\,\nabla N_i^{(k)}.
-\end{equation*}
-Evaluating $\alpha$ at the barycenter gives the element average
-\begin{equation*}
-  \bar\alpha_k = \tfrac14\sum_{i=1}^4\alpha_i.
-\end{equation*}
-Using one‑point quadrature at the barycenter, the volume integral becomes
-\begin{equation}
-  R_\alpha(\alpha)
-  \approx
-  \sum_{k=1}^M
-  V_k
-  \sqrt{
-    \frac{\|\nabla_{T_k}\alpha\|^2}
-         {(\bar\alpha_k+\tfrac12\varepsilon_{\text{div}})^2}
-    + \varepsilon_{\text{reg}}^2
-  }.
-\end{equation}
-This is a discrete log‑TV regularizer: when $\varepsilon_{\text{reg}}$ is
-small and $\|\nabla\alpha\|$ is moderate, it behaves roughly like
-$\int |\nabla \log\alpha|$, penalizing large relative changes in stiffness
-rather than absolute scale.
+$$
+K(\alpha)^{\top} \lambda=\frac{2}{c_{\mathrm{rel}}}\left(u^{\star}-u_{\mathrm{obs}}\right)+\omega_1 \frac{\partial R_u}{\partial u^{\star}} .
+$$
 
-We denote the assembled gradient of this regularizer by
-$\partial R_\alpha/\partial\alpha$; its explicit nodal formula follows from
-applying the quotient rule and the chain rule over the four nodes of each tet,
-using the expressions for $\nabla_{T_k}\alpha$ and $\bar\alpha_k$ above.
 
-In the global objective we multiply this regularizer by a weight $\omega_2>0$.
-The full objective is
-\begin{equation}
-  \mathcal{L}(u_{\text{sim}},\alpha)
-  = \frac{\|u_{\text{sim}}-u_{\text{obs}}\|_2^2}
-         {\|u_{\text{obs}}\|_2^2
-          + (\varepsilon_{\text{rel}}\|u_{\text{obs}}\|_2)^2}
-    + \omega_1 R_u(u_{\text{sim}})
-    + \omega_2 R_\alpha(\alpha).
-\end{equation}
-We actually optimize over log‑parameters $\theta = \log\alpha$, which enforces
-positivity $\alpha = e^\theta>0$ and matches the log‑TV interpretation. The
-chain rule gives
-\begin{equation*}
-  \frac{\partial \mathcal{L}}{\partial \theta_k}
-  = \alpha_k\frac{\partial \mathcal{L}}{\partial \alpha_k}.
-\end{equation*}
+Stationarity with respect to $\lambda$ recovers the primal equilibrium constraint 
+$K(\alpha) u^{\star}=b$. 
+Finally, stationarity with respect to $\alpha$ provides the reduced gradient in a form 
+that avoids differentiating $u^{\star}(\alpha)$ :
 
-\subsubsection{Adjoint function}
+$$
+\frac{\partial \mathcal{J}}{\partial \alpha}=-\lambda^{\top}\left(\frac{\partial K}{\partial \alpha} u^{\star}\right)+\omega_2 \frac{\partial R_\alpha}{\partial \alpha} .
+$$
 
-We now derive the adjoint equations, first without displacement
-regularization on $u$, then in the general case where $R_u(u_{\text{sim}})$ is
-included. In both cases we keep the parameter regularizer $R_\alpha(\alpha)$,
-which depends only on $\alpha$ and therefore does not change the structure of
-the adjoint system.
 
-\paragraph{Setup and notation.}
+This formulation requires only one forward solve for $u^{\star}$ 
+and one adjoint solve for $\lambda$ per outer iteration, 
+after which the stiffness gradient follows from elementwise sensitivity 
+contributions $(\partial K / \partial \alpha) u^{\star}$ 
+and the explicit regularization gradient $\partial R_\alpha / \partial \alpha$.
 
-The forward problem is the linear system
-\begin{equation*}
-  K(\alpha)\,u_{\text{sim}} = b,
-\end{equation*}
-obtained from assembling the quadratic SMS model with parameters $\alpha$
-(and $\beta,\kappa$ tied to $\alpha$ as described earlier). The observed
-displacement on free DOFs is $u_{\text{obs}}$. We use a normalized squared
-misfit
-\begin{equation*}
-  \mathcal{L}_{\text{data}}(u_{\text{sim}})
-  = \frac{\|u_{\text{sim}} - u_{\text{obs}}\|_2^2}
-         {\|u_{\text{obs}}\|_2^2
-          + (\varepsilon_{\text{rel}}\|u_{\text{obs}}\|_2)^2},
-\end{equation*}
-and add the two regularizers with weights $\omega_1$ (for $u$) and $\omega_2$
-(for $\alpha$):
-\begin{equation*}
-  \mathcal{L}(u_{\text{sim}},\alpha)
-  = \mathcal{L}_{\text{data}}(u_{\text{sim}})
-    +\omega_1 R_u(u_{\text{sim}})
-    +\omega_2 R_\alpha(\alpha).
-\end{equation*}
-The PDE constraint is $K(\alpha)u_{\text{sim}}=b$.
+\subsection{Inverse in appendix}
+\subsubsection{$\partial R/ \partial u$:}
+We consider a tetrahedral mesh with elements $T_k(k=1, \ldots, M)$ and volumes $V_k$. 
+The forward solve produces the displacement on free DOFs, 
+$u_{\text {sim }} \in \mathbb{R}^{3 N_f}$; for brevity we write $u:=u_{\text {sim }}$. 
+On each linear tetrahedron $T_k$, 
+the shape-function gradients $\nabla N_a^{(k)} \in \mathbb{R}^3$ are constant, 
+so the elementwise displacement gradient is constant and defined by
 
-Introduce an adjoint (Lagrange multiplier) vector $\lambda$ and form the
-Lagrangian
-\begin{equation}
-  \Phi(u_{\text{sim}},\alpha,\lambda)
-  = \mathcal{L}_{\text{data}}(u_{\text{sim}})
-    +\omega_1 R_u(u_{\text{sim}})
-    +\omega_2 R_\alpha(\alpha)
-    + \lambda^\top\bigl(K(\alpha)u_{\text{sim}} - b\bigr).
-\end{equation}
-We compute first variations with respect to $u_{\text{sim}}$, $\lambda$, and
-$\alpha$.
+$$
+\nabla_{T_k} u=\sum_{i=1}^4 u_i \otimes \nabla N_i^{(k)} \in \mathbb{R}^{3 \times 3},
+$$
 
-\paragraph{Data‑misfit gradient with respect to $u_{\text{sim}}$.}
+where $u_i \in \mathbb{R}^3$ are the nodal displacement vectors 
+of the four vertices of $T_k$. We regularize this gradient using an isotropic TV form 
+smoothed by a Charbonnier function,
 
+$$
+R(u)=\sum_{k=1}^M V_k \sqrt{\left\|\nabla_{T_k} u\right\|_F^2+\varepsilon^2},
+$$
+To compute its gradient with respect to the global unknowns, we use the first variation: 
+for any admissible perturbation $\delta u$, the induced first-order change $\delta R$ 
+is the differential of $R$ at $u$ applied to $\delta u$, 
+and by definition of the gradient in Euclidean coordinates,
+
+$$
+\delta R=d R_u(\delta u)=\left(\frac{\partial R}{\partial u}\right)^{\top} \delta u .
+$$
+To express this differential in a form that exposes $\partial R / \partial u$, 
+we introduce a sparse mapping from global displacement DOFs to stacked elementwise gradients. 
+For each element $T_k$, define the local displacement vector 
+$u_e=\left[u_1^{\top}, u_2^{\top}, u_3^{\top}, u_4^{\top}\right]^{\top} \in \mathbb{R}^{12}$ 
+and the gradient matrix $B_k= \left[\nabla N_1^{(k)} \nabla N_2^{(k)} \nabla N_3^{(k)} \nabla N_4^{(k)}\right] \in \mathbb{R}^{3 \times 4}$. 
 Let
-\begin{equation*}
-  D := \|u_{\text{obs}}\|_2^2
-       + (\varepsilon_{\text{rel}}\|u_{\text{obs}}\|_2)^2,
-\end{equation*}
-which is constant for a fixed observation. Then
-\begin{equation*}
-  \mathcal{L}_{\text{data}}(u_{\text{sim}})
-  = \frac{1}{D}\,\|u_{\text{sim}} - u_{\text{obs}}\|_2^2,
-\end{equation*}
-so
-\begin{equation*}
-  \frac{\partial \mathcal{L}_{\text{data}}}{\partial u_{\text{sim}}}
-  = \frac{2}{D}\,(u_{\text{sim}} - u_{\text{obs}}).
-\end{equation*}
-This is the basic data‑term gradient that appears in the adjoint right‑hand
-side (with possible additions from $R_u$).
 
-\paragraph{Case A: adjoint without displacement regularization on $u$.}
+$$
+\tilde{u_k}=\left[u_1 u_2 u_3 u_4\right] \in \mathbb{R}^{3 \times 4}, \quad \text { so that } \quad \nabla_{T_k} u=\tilde{u_k} B_k^{\top} \in \mathbb{R}^{3 \times 3} .
+$$
 
-Set $\omega_1 = 0$, so
-\begin{equation*}
-  \mathcal{L}(u_{\text{sim}},\alpha)
-  = \mathcal{L}_{\text{data}}(u_{\text{sim}}) + \omega_2 R_\alpha(\alpha),
-\end{equation*}
-and
-\begin{equation*}
-  \Phi(u_{\text{sim}},\alpha,\lambda)
-  = \mathcal{L}_{\text{data}}(u_{\text{sim}})
-    +\omega_2 R_\alpha(\alpha)
-    + \lambda^\top\bigl(K(\alpha)u_{\text{sim}} - b\bigr).
-\end{equation*}
 
-Variation with respect to $u_{\text{sim}}$ gives
-\begin{equation*}
-  \delta_{u_{\text{sim}}}\Phi
-  = \bigl(
-      \tfrac{\partial\mathcal{L}_{\text{data}}}{\partial u_{\text{sim}}}
-      + K(\alpha)^\top \lambda
-    \bigr)^\top \delta u_{\text{sim}}.
-\end{equation*}
-Inserting the data gradient and setting this to zero for all $\delta u_{\text{sim}}$
-gives the adjoint equation
-\begin{equation*}
-  K(\alpha)^\top \lambda
-  = \frac{2}{D}(u_{\text{sim}} - u_{\text{obs}}).
-\end{equation*}
-For linear elasticity $K(\alpha)$ is symmetric, so
-\begin{equation*}
-  K(\alpha)\,\lambda
-  = \frac{2}{D}(u_{\text{sim}} - u_{\text{obs}}).
-\end{equation*}
+Vectorizing the $3 \times 3$ gradient (stacking columns) yields a 9-vector, 
+and using vec $\left(\tilde{u_k} B_k^{\top}\right)=\left(B_k \otimes\right. 
+\left.I_3\right) \operatorname{vec}\left(\tilde{u_k}\right)$, 
+we define the element operator $G_k:=B_k \otimes I_3 \in \mathbb{R}^{9 \times 12}$ 
+such that
+$$
+\operatorname{vec}\left(\nabla_{T_k} u\right)=G_k u_e .
+$$
+Let $P_k \in \mathbb{R}^{12 \times 3 N_f}$ be the element-to-global gather matrix 
+that extracts the 12 local DOFs from the global vector, 
+so $u_e=P_k u$ and $\delta u_e=P_k \delta u$. 
+Stacking all element contributions (9 rows per element) defines the global sparse operator
+$$
+G=\left[\begin{array}{c}
+G_1 P_1 \\
+\vdots \\
+G_M P_M
+\end{array}\right] \in \mathbb{R}^{9 M \times 3 N_f}, \quad G u=\left[\begin{array}{c}
+\operatorname{vec}\left(\nabla_{T_1} u\right) \\
+\vdots \\
+\operatorname{vec}\left(\nabla_{T_M} u\right)
+\end{array}\right] .
+$$
+With $S_k:=\nabla_{T_k} u$, write the per-element contribution as 
+$R_k(u)=\sqrt{\left\|S_k\right\|_F^2+\varepsilon^2}=\sqrt{\operatorname{tr}\left(S_k^{\top} 
+S_k\right)+\varepsilon^2 \text {. }}$ 
+Taking the first variation and using the chain rule gives
+$$
+\delta R_k=V_k \frac{\operatorname{tr}\left(S_k^{\top} \delta S_k\right)}
+{\sqrt{\left\|S_k\right\|_F^2+\varepsilon^2}}
+$$
+Since $\delta S_k=\nabla_{T_k} \delta u$ and 
+$\operatorname{tr}\left(A^{\top} B\right)=\operatorname{vec}(A)^{\top} 
+\operatorname{vec}(B)$, 
+together with $\operatorname{vec}\left(\delta S_k\right)=G_k \delta u_e$, we obtain
 
-Variation with respect to $\lambda$ enforces the PDE constraint:
-\begin{equation*}
-  \delta_\lambda \Phi
-  = (K(\alpha)u_{\text{sim}} - b)^\top \delta\lambda
-  \quad\Rightarrow\quad
-  K(\alpha)u_{\text{sim}} = b.
-\end{equation*}
+$$
+\delta R_k=\frac{V_k}{\sqrt{\left\|S_k\right\|_F^2+\varepsilon^2}} 
+\operatorname{vec}\left(S_k\right)^{\top} G_k \delta u_e .
+$$
 
-For $\alpha$ we obtain
-\begin{equation*}
-  \delta_\alpha \Phi
-  = \Bigl(
-      \omega_2\,\frac{\partial R_\alpha}{\partial\alpha}
-      + \lambda^\top \frac{\partial K}{\partial\alpha}\,u_{\text{sim}}
-    \Bigr)\cdot\delta\alpha,
-\end{equation*}
-so the gradient of the reduced objective is
-\begin{equation}
-  \frac{\partial \mathcal{L}}{\partial \alpha}
-  = \lambda^\top \frac{\partial K}{\partial\alpha} u_{\text{sim}}
-    + \omega_2\,\frac{\partial R_\alpha}{\partial\alpha}.
-\end{equation}
-When we switch variables to $\theta = \log\alpha$, we multiply by $\alpha$ to
-obtain $\partial\mathcal{L}/\partial\theta$.
 
-\paragraph{Case B: adjoint with displacement regularization $R_u(u_{\text{sim}})$.}
+Substituting $\delta u_e=P_k \delta u$ and summing over all elements yields
 
-Now consider the full objective with $\omega_1>0$:
-\begin{equation*}
-  \mathcal{L}(u_{\text{sim}},\alpha)
-  = \mathcal{L}_{\text{data}}(u_{\text{sim}})
-    +\omega_1 R_u(u_{\text{sim}})
-    +\omega_2 R_\alpha(\alpha),
-\end{equation*}
-and the Lagrangian
-\begin{equation*}
-  \Phi(u_{\text{sim}},\alpha,\lambda)
-  = \mathcal{L}_{\text{data}}(u_{\text{sim}})
-    +\omega_1 R_u(u_{\text{sim}})
-    +\omega_2 R_\alpha(\alpha)
-    + \lambda^\top\bigl(K(\alpha)u_{\text{sim}} - b\bigr).
-\end{equation*}
+$$
+\delta R=\sum_{k=1}^M \frac{V_k}{\sqrt{\left\|S_k\right\|_F^2+\varepsilon^2}} 
+\operatorname{vec}\left(S_k\right)^{\top} G_k P_k \delta u=
+\left(\sum_{k=1}^M P_k^{\top} G_k^{\top} 
+\frac{V_k}{\sqrt{\left\|S_k\right\|_F^2+\varepsilon^2}} 
+\operatorname{vec}\left(S_k\right)\right)^{\top} \delta u .
+$$
 
-Variation with respect to $u_{\text{sim}}$ gives
-\begin{equation*}
-  \delta_{u_{\text{sim}}}\Phi
-  = \bigl(
-      \tfrac{\partial\mathcal{L}_{\text{data}}}{\partial u_{\text{sim}}}
-      +\omega_1\,\tfrac{\partial R_u}{\partial u_{\text{sim}}}
-      + K(\alpha)^\top \lambda
-    \bigr)^\top \delta u_{\text{sim}}.
-\end{equation*}
-Using the expression $r_{\text{reg}} = \partial R_u/\partial u_{\text{sim}}
-= G^\top W(u_{\text{sim}})G u_{\text{sim}}$ and setting the variation to zero
-for all $\delta u_{\text{sim}}$ yields
-\begin{equation*}
-  K(\alpha)^\top\lambda
-  = \frac{2}{D}(u_{\text{sim}} - u_{\text{obs}})
-    +\omega_1\,r_{\text{reg}}.
-\end{equation*}
-By symmetry of $K(\alpha)$ this is
-\begin{equation*}
-  K(\alpha)\,\lambda
-  = \frac{2}{D}(u_{\text{sim}} - u_{\text{obs}})
-    +\omega_1\,r_{\text{reg}}.
-\end{equation*}
 
-The variations with respect to $\lambda$ and $\alpha$ are exactly as in
-Case~A (since $R_u$ does not depend directly on $\alpha$):
-\begin{equation*}
-  K(\alpha)u_{\text{sim}} = b,
-\end{equation*}
-and
-\begin{equation*}
-  \frac{\partial \mathcal{L}}{\partial \alpha}
-  = \lambda^\top \frac{\partial K}{\partial\alpha}u_{\text{sim}}
-    +\omega_2\,\frac{\partial R_\alpha}{\partial\alpha}.
-\end{equation*}
-Thus the displacement regularizer $R_u$ changes only the right‑hand side of
-the adjoint system; it does not affect the PDE constraint or the structure of
-$\partial\mathcal{L}/\partial\alpha$.
+Comparing with $\delta R=d R_u(\delta u)=(\partial R / \partial u)^{\top} \delta u$ identifies
+
+$$
+\frac{\partial R}{\partial u}=\sum_{k=1}^M P_k^{\top} G_k^{\top} 
+\frac{V_k}{\sqrt{\left\|S_k\right\|_F^2+\varepsilon^2}} \operatorname{vec}\left(S_k\right) .
+$$
+\subsubsection{$\partial R / \partial \alpha$:} 
+Usually, a continuum TV-type regularization on a scalar parameter $\mu$ is written as
+
+$$
+R(\mu)=\int_{\Omega} \sqrt{\frac{\|\nabla \mu\|^2}
+{\left(\mu+\varepsilon_{\text {div }}\right)^2}+\varepsilon_{\text {reg }}^2} \mathrm{~d} V .
+$$
+
+
+This form penalizes spatial oscillations through $\|\nabla \mu\|$ 
+while normalizing by $\mu+\varepsilon_{\text {div }}$ to avoid scale bias 
+and to prevent division by zero when $\mu$ is small. 
+The Charbonnier constant $\varepsilon_{\text {reg }}$ 
+smooths the absolute value behavior so that the functional remains differentiable 
+and numerically stable.
+
+For our discretization, we apply the same structure to the nodal field $\alpha$. 
+Using linear tetrahedral finite elements, 
+$\alpha$ is piecewise-linear and therefore its gradient is constant within each tetrahedron.
+Approximating the volume integral by one-point (barycentric) quadrature 
+leads to a simple sum of element contributions: 
+each tetrahedron contributes its volume times the integrand evaluated at the barycenter. 
+Concretely,
+$
+R(\alpha) \approx \sum_{k=1}^M V_k \sqrt{\frac{\left\|\nabla_{T_k} \alpha\right\|^2}{\left(\bar{\alpha}_k+\varepsilon_{\mathrm{div}}\right)^2}+\varepsilon_{\mathrm{reg}}^2} .
+$
+On each tetrahedron $T_k$ (volume $V_k$ ), the gradient is constant:
+$\nabla_{T_k} \alpha=\sum_{i=1}^4 \alpha_i \nabla N_i^{(k)},$
+and evaluating $\alpha$ at the barycenter gives the element average
+$\bar{\alpha}_k=\frac{1}{4} \sum_{i=1}^4 \alpha_i .$
+\newline
+We now derive the discrete gradient of this regularizer. 
+Define the per-element contribution
+$$
+R_k(\alpha):=V_k \sqrt{\frac{\left\|\nabla_{T_k} \alpha\right\|^2}{\left(\bar{\alpha}_k+\varepsilon_{\mathrm{div}}\right)^2}+\varepsilon_{\mathrm{reg}}^2}
+$$
+Our goal is to differentiate $R_k$ with respect to the four nodal values on $T_k$. 
+To streamline the chain rule, introduce the intermediate quantity
+$$
+A_k:=\frac{\left\|\nabla_{T_k} \alpha\right\|^2}{\left(\bar{\alpha}_k+\varepsilon_{\mathrm{div}}\right)^2}
+$$
+Then $R_k(\alpha)=V_k \sqrt{A_k+\varepsilon_{\text {reg }}^2}$, 
+and the first variation follows directly from the derivative of the square root:
+$$
+\delta R_k=V_k \cdot \frac{1}{2 \sqrt{A_k+\varepsilon_{\mathrm{reg}}^2}} \delta A_k .
+$$
+The remaining step is to compute $\delta A_k$, 
+which depends on both the numerator $\left\|\nabla_{T_k} \alpha\right\|^2$ 
+and the denominator $\left(\bar{\alpha}_k+\varepsilon_{\text {div }}\right)^2$. 
+Applying the product rule gives
+$$
+\delta A_k=\frac{2 \nabla_{T_k} \alpha \cdot \nabla_{T_k}(\delta \alpha)}{\left(\bar{\alpha}_k+\varepsilon_{\mathrm{div}}\right)^2}-\frac{2\left\|\nabla_{T_k} \alpha\right\|^2}{\left(\bar{\alpha}_k+\varepsilon_{\mathrm{div}}\right)^3} \delta \bar{\alpha}_k .
+$$
+Substitute $
+\nabla_{T_k}(\delta \alpha)=\sum_{i=1}^4 \delta \alpha_i \nabla N_i^{(k)},  
+\delta \bar{\alpha}_k=\frac{1}{4} \sum_{i=1}^4 \delta \alpha_i
+$ into $\delta R_k$ and grouping by
+$\delta\alpha_a$:
+$$
+\delta R_k=\sum_{i=1}^4\left[V_k\left(\frac{\nabla_{T_k} 
+\alpha \cdot \nabla N_i^{(k)}}{\left(\bar{\alpha}_k+
+\varepsilon_{\text {div }}\right)^2 \sqrt{\frac{\left\|\nabla_{T_k} 
+\alpha\right\|^2}{\left(\bar{\alpha}_k+\varepsilon_{\text {div }}\right)^2}+
+\varepsilon_{\text {reg }}^2}}-\frac{\left\|\nabla_{T_k} 
+\alpha\right\|^2}{\left(\bar{\alpha}_k+\varepsilon_{\text {div }}\right)^3 
+\sqrt{\frac{\left\|\nabla_{T_k} \alpha\right\|^2}
+{\left(\bar{\alpha}_k+\varepsilon_{\text {div }}\right)^2}+\varepsilon_{\text {reg }}^2}} 
+\cdot \frac{1}{4}\right)\right] \delta \alpha_i .
+$$
+From this expression we can obtain the element gradient vector (four entries, one per node). 
+Writing the vector $\alpha_e^{(k)}=\left[\alpha_1, \alpha_2, \alpha_3, \alpha_4\right]^{\top}$, 
+the elementwise derivative is
+
+$$
+\frac{\partial R_k}{\partial \alpha_e^{(k)}}=V_k\left(\frac{\left[\begin{array}{l}
+\nabla_{T_k} \alpha \cdot \nabla N_1^{(k)} \\
+\nabla_{T_k} \alpha \cdot \nabla N_2^{(k)} \\
+\nabla_{T_k} \alpha \cdot \nabla N_3^{(k)} \\
+\nabla_{T_k} \alpha \cdot \nabla N_4^{(k)}
+\end{array}\right]}{\left(\bar{\alpha}_k+\varepsilon_{\text {div }}\right)^2 
+\sqrt{\frac{\left\|\nabla_{T_k} \alpha\right\|^2}{\left(\bar{\alpha}_k+
+\varepsilon_{\text {div }}\right)^2}+\varepsilon_{\text {reg }}^2}}-
+\frac{\left\|\nabla_{T_k} \alpha\right\|^2}{\left(\bar{\alpha}_k
++\varepsilon_{\text {div }}\right)^3 \sqrt{\frac{\left\|\nabla_{T_k} \alpha\right\|^2}
+{\left(\bar{\alpha}_k+\varepsilon_{\text {div }}\right)^2}+\varepsilon_{\text {reg }}^2}} 
+\frac{1}{4}\right) .$$
+\newline
+Similary, the global gradient $\partial R / \partial \alpha$ is obtained by scattering 
+the four entries of $\partial R_k / \partial \alpha_e^{(k)}$ 
+to the corresponding global nodal indices and summing over all tetrahedra.
 
 \subsection{Integrate with GCN}
 

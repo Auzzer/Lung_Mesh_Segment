@@ -67,6 +67,7 @@ def interpolate_to_ct(
     use_log_alpha: bool = True,
     base_time: str = "T00",
     return_kpa: bool = False,
+    mask_path: str | Path | None = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Interpolate per-tet alpha / log_alpha from a mesh NPZ onto the CT voxel grid.
@@ -103,6 +104,17 @@ def interpolate_to_ct(
 
     E_vol = np.zeros(ct_shape, dtype=np.float32)
     E_vol[np.ix_(gi, gj, gk)] = E_vals.reshape(len(gi), len(gj), len(gk))
+
+    # Optional: restrict to lung mask
+    if mask_path is not None:
+        mask_img = nib.load(str(mask_path))
+        mask_data = mask_img.get_fdata()
+        if mask_data.shape[:3] != ct_shape:
+            raise ValueError(
+                f"Mask shape {mask_data.shape[:3]} does not match CT shape {ct_shape}"
+            )
+        lung = mask_data > 0.5
+        E_vol[~lung] = 0.0
 
     return ct_vol, E_vol, ct_aff
 
@@ -142,19 +154,11 @@ def interactive_slicer(
     if axis not in (0, 1, 2):
         raise ValueError(f"axis must be 0, 1, or 2, got {axis}")
 
-    # Infer global color limits from non-zero voxels if not provided
-    if vmin is None or vmax is None:
-        mask = param_vol != 0
-        if mask.any():
-            if vmin is None:
-                vmin = float(param_vol[mask].min())
-            if vmax is None:
-                vmax = float(param_vol[mask].max())
-        else:
-            if vmin is None:
-                vmin = float(param_vol.min())
-            if vmax is None:
-                vmax = float(param_vol.max())
+    # Fix color range to [0.5, 20] (e.g. kPa) unless overridden
+    if vmin is None:
+        vmin = 0.5
+    if vmax is None:
+        vmax = 20.0
 
     max_index = ct_vol.shape[axis] - 1
     slider = widgets.IntSlider(
@@ -179,9 +183,15 @@ def interactive_slicer(
 
         fig, ax = plt.subplots(1, 1, figsize=(6, 6))
         ax.imshow(ct_slice.T, cmap="gray", origin="lower")
+        # Treat zeros as background: make them fully transparent
+        import numpy.ma as ma
+
+        masked = ma.masked_where(param_slice == 0.0, param_slice)
+        cmap_obj = plt.get_cmap(cmap).copy()
+        cmap_obj.set_bad(alpha=0.0)
         im = ax.imshow(
-            param_slice.T,
-            cmap=cmap,
+            masked.T,
+            cmap=cmap_obj,
             origin="lower",
             alpha=alpha,
             vmin=vmin,
@@ -189,7 +199,7 @@ def interactive_slicer(
         )
         ax.set_axis_off()
         cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        cbar.set_label("Stiffness (E)")
+        cbar.set_label("Stiffness E(KPa)")
         plt.show()
 
     out = widgets.interactive_output(_update, {"idx": slider})
@@ -206,6 +216,7 @@ def interactive_mesh_slicer(
     vmin: float | None = None,
     vmax: float | None = None,
     thickness: float = 0.5,
+    shuffle: bool = True,
 ) -> None:
     """
     Interactive slicer that overlays mesh nodes on CT slices.
@@ -220,10 +231,11 @@ def interactive_mesh_slicer(
     values = np.asarray(values, dtype=np.float32)
     coords = np.asarray(vox_coords, dtype=np.float32)
 
+    # Fix color range to [0.5, 20] (e.g. kPa) unless overridden
     if vmin is None:
-        vmin = float(values.min())
+        vmin = 0.5
     if vmax is None:
-        vmax = float(values.max())
+        vmax = 20.0
 
     max_index = ct_vol.shape[axis] - 1
     slider = widgets.IntSlider(
@@ -251,13 +263,26 @@ def interactive_mesh_slicer(
         ax.imshow(ct_slice.T, cmap="gray", origin="lower")
 
         if mask.any():
-            others = [0, 1, 2]
-            others.remove(axis)
-            i_idx, j_idx = others[0], others[1]
             sub = coords[mask]
-            x = sub[:, j_idx]
-            y = sub[:, i_idx]
             vals = values[mask]
+            if shuffle:
+                order = np.arange(sub.shape[0])
+                np.random.shuffle(order)
+                sub = sub[order]
+                vals = vals[order]
+            # Map voxel indices (i, j, k) to display coordinates consistently
+            if axis == 2:
+                # axial: plane (i, j), ct_slice = vol[:, :, idx], shown as ct_slice.T
+                x = sub[:, 0]  # i
+                y = sub[:, 1]  # j
+            elif axis == 1:
+                # coronal: plane (i, k), ct_slice = vol[:, idx, :], shown as ct_slice.T
+                x = sub[:, 0]  # i
+                y = sub[:, 2]  # k
+            else:
+                # sagittal: plane (j, k), ct_slice = vol[idx, :, :], shown as ct_slice.T
+                x = sub[:, 1]  # j
+                y = sub[:, 2]  # k
             sc = ax.scatter(
                 x,
                 y,
@@ -270,7 +295,7 @@ def interactive_mesh_slicer(
             )
             ax.set_axis_off()
             cbar = fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04)
-            cbar.set_label("Stiffness (E)")
+            cbar.set_label("Stiffness E(KPa)")
         else:
             ax.set_axis_off()
 

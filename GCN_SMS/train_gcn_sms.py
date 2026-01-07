@@ -4,6 +4,10 @@ Matches doc/gcn.md: HU->log-alpha linear baseline + residual GCN, one update per
 python GCN_SMS/train_gcn_sms.py --omega-u 0.5 --omega-alpha 0.5 --num-epochs 50 | tee train.log
 
 
+E(H)= 1 kpa if H <=-950 \\ 
+    = 1+19/750*(H+950) kPa, if -950<H<-200 \\ 
+    = 20 kpa if H >= 200
+
 """
 
 from __future__ import annotations

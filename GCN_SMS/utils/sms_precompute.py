@@ -15,7 +15,7 @@ repo_root = current_dir.parent.parent
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
-from toy_verification.deformation_processor_v2 import (
+from deformation_processor_v2 import (
     DeformationProcessor,
     load_mesh_with_displacement,
 )

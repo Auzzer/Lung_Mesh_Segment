@@ -39,7 +39,7 @@ from scipy.interpolate import RegularGridInterpolator
 TIME_RE = re.compile(r"T(\d{2})", re.IGNORECASE)
 
 
-def hu_to_alpha_from_paper(hu_mean: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def hu_to_alpha(hu_mean: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Map HU -> E(H) (kPa) -> alpha (Pa) using paper mapping:
       E(H) = 1 kPa  for H<=-950
@@ -383,7 +383,7 @@ def pack_mesh_hu_sequence(
     bary_steps_np = np.stack(bary_steps, axis=0)  # (S, M, 3)
     bary_mean = bary_steps_np.mean(axis=0)
 
-    alpha_init, log_alpha_init = hu_to_alpha_from_paper(hu_mean)
+    alpha_init, log_alpha_init = hu_to_alpha(hu_mean)
 
     out_dict = {key: data[key] for key in data.files}
     out_dict["hu_tetra_steps"] = hu_steps_np

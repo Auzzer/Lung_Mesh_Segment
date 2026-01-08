@@ -5,30 +5,20 @@ Uses CPU cKDTree nearest-neighbor over the CT grid (bounding box of the mesh) to
 
 Usage:
   python GCN_SMS/utils/map_alpha_to_ct.py \
-    --mesh-npz checkpoints/mesh_results/Case1Pack_epoch000_omegaU0.000_omegaA0.000.npz \
-    --ct data/Emory-4DCT/Case1Pack/NIFTI/case1_T00.nii.gz \
-    --out checkpoints/mesh_results/Case1Pack_epoch000_E_on_ct.nii.gz \
-    --use-log-alpha
+    --mesh-npz EXPs/Emory4DCT/results/checkpoints/mesh_results/Case2Pack_epoch090_omegaU0.500_omegaA0.500.npz \
+    --ct data/Emory-4DCT/Case2Pack/NIFTI/case2_T00.nii.gz \
+    --out EXPs/Emory4DCT/results/Efield_results/Case2Pack_Efield.nii.gz
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 from typing import Tuple
 
 import nibabel as nib
 import numpy as np
-import torch
 from scipy.spatial import cKDTree
-
-# Add lung_project_git to path for imports
-_lung_project_path = Path(__file__).resolve().parent.parent.parent / "lung_project_git"
-if str(_lung_project_path) not in sys.path:
-    sys.path.insert(0, str(_lung_project_path))
-
-from project.core.transforms import world_to_voxel_coords  
 
 NU = 0.4  # Poisson ratio for E conversion: E = 2*(1+nu)*alpha
 
@@ -79,12 +69,11 @@ def main() -> None:
     alpha_node = tet_to_node(alpha_tet, tets, pts_m.shape[0])
     E_node = 2.0 * (1.0 + NU) * alpha_node  # Young's modulus
 
-    # World (m) -> voxel using core.transforms
+    # World (m) -> voxel
+    affine_inv = np.linalg.inv(ct_aff)
     pts_mm = pts_m * 1e3
-    pts_mm_t = torch.from_numpy(pts_mm)
-    ct_aff_t = torch.from_numpy(ct_aff.astype(np.float32))
-    vox_t = world_to_voxel_coords(pts_mm_t, ct_aff_t)
-    vox = vox_t.numpy().astype(np.float32)  # (N,3)
+    pts_h = np.concatenate([pts_mm, np.ones((pts_mm.shape[0], 1), dtype=np.float32)], axis=1)
+    vox = (affine_inv @ pts_h.T).T[:, :3].astype(np.float32)  # (N,3)
 
     # Bounding box + small padding
     pad = 2.0

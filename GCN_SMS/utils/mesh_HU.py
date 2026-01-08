@@ -11,7 +11,6 @@ trilinear interpolation on the CT grid.
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 from typing import Dict
 
@@ -19,18 +18,59 @@ import nibabel as nib
 import numpy as np
 import torch
 
-# Add lung_project_git to path for imports
-_lung_project_path = Path(__file__).resolve().parent.parent.parent / "lung_project_git"
-if str(_lung_project_path) not in sys.path:
-    sys.path.insert(0, str(_lung_project_path))
 
-from project.core.transforms import world_to_voxel_coords  
-from project.core.interpolation import interpolate_image  
+def world_to_voxel(affine_inv: torch.Tensor, xyz: torch.Tensor) -> torch.Tensor:
+    """Map world coordinates to voxel coordinates via the inverse affine."""
+    ones = torch.ones((xyz.shape[0], 1), device=xyz.device, dtype=xyz.dtype)
+    hom = torch.cat([xyz, ones], dim=1)
+    ijk = hom @ affine_inv.T
+    return ijk[:, :3]
 
 
-# Removed: world_to_voxel and trilinear_sample functions
-# Now using world_to_voxel_coords from project.core.transforms
-# and interpolate_image from project.core.interpolation
+def trilinear_sample(volume: torch.Tensor, ijk: torch.Tensor) -> torch.Tensor:
+    """
+    Trilinear interpolation for an array of (i, j, k) voxel coordinates.
+
+    Args:
+        volume: Tensor with shape (D, H, W) on the target device.
+        ijk: Tensor with shape (N, 3) of floating point voxel coordinates.
+
+    Returns:
+        Tensor with shape (N,) of interpolated values.
+    """
+    d, h, w = volume.shape
+
+    i = ijk[:, 0]
+    j = ijk[:, 1]
+    k = ijk[:, 2]
+
+    i0 = torch.floor(i).long().clamp(0, d - 1)
+    j0 = torch.floor(j).long().clamp(0, h - 1)
+    k0 = torch.floor(k).long().clamp(0, w - 1)
+    i1 = (i0 + 1).clamp(0, d - 1)
+    j1 = (j0 + 1).clamp(0, h - 1)
+    k1 = (k0 + 1).clamp(0, w - 1)
+
+    di = i - i0.to(i.dtype)
+    dj = j - j0.to(j.dtype)
+    dk = k - k0.to(k.dtype)
+
+    c000 = volume[i0, j0, k0]
+    c100 = volume[i1, j0, k0]
+    c010 = volume[i0, j1, k0]
+    c110 = volume[i1, j1, k0]
+    c001 = volume[i0, j0, k1]
+    c101 = volume[i1, j0, k1]
+    c011 = volume[i0, j1, k1]
+    c111 = volume[i1, j1, k1]
+
+    c00 = c000 * (1.0 - di) + c100 * di
+    c01 = c001 * (1.0 - di) + c101 * di
+    c10 = c010 * (1.0 - di) + c110 * di
+    c11 = c011 * (1.0 - di) + c111 * di
+    c0 = c00 * (1.0 - dj) + c10 * dj
+    c1 = c01 * (1.0 - dj) + c11 * dj
+    return c0 * (1.0 - dk) + c1 * dk
 
 
 def _sample_vertices(
@@ -40,7 +80,7 @@ def _sample_vertices(
     Chunked trilinear sampling to avoid oversized temporary allocations.
 
     Args:
-        volume: CT tensor on target device (C, D, H, W) where C=1 for single channel.
+        volume: CT tensor on target device (D, H, W).
         ijk: Voxel coordinates for all vertices (N, 3).
         chunk_size: Maximum vertices to interpolate per chunk.
 
@@ -50,11 +90,7 @@ def _sample_vertices(
     out = torch.empty((ijk.shape[0],), device=volume.device, dtype=volume.dtype)
     for start in range(0, ijk.shape[0], chunk_size):
         end = min(start + chunk_size, ijk.shape[0])
-        # interpolate_image expects (C, I, J, K) image and returns (N, C)
-        sampled = interpolate_image(
-            volume, ijk[start:end], mode='bilinear', padding='border', align_corners=True
-        )
-        out[start:end] = sampled[:, 0]  # Extract single channel
+        out[start:end] = trilinear_sample(volume, ijk[start:end])
     return out
 
 
@@ -109,13 +145,11 @@ def compute_mesh_hu(
         if torch_device.type == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("CUDA requested but not available.")
 
-    # Add channel dimension for interpolate_image: (D, H, W) -> (1, D, H, W)
-    volume_t = torch.from_numpy(ct_hu).unsqueeze(0).to(torch_device)
-    affine_t = torch.from_numpy(img.affine).to(torch_device)
+    volume_t = torch.from_numpy(ct_hu).to(torch_device)
+    affine_inv_t = torch.from_numpy(np.linalg.inv(img.affine).astype(np.float32)).to(torch_device)
     points_t = torch.from_numpy(points).to(torch_device)
 
-    # Use world_to_voxel_coords from core.transforms (takes affine, not affine_inv)
-    ijk = world_to_voxel_coords(points_t, affine_t)
+    ijk = world_to_voxel(affine_inv_t, points_t)
     vertex_hu = _sample_vertices(volume_t, ijk, chunk_size=chunk_size)
 
     tets_t = torch.from_numpy(tets).to(torch_device)
